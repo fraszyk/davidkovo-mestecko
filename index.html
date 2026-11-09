@@ -1306,7 +1306,15 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
       Hlas.stav.klipu = Object.keys(index).length; Hlas.stav.nacteno = true;
     } catch (e) { index = null; Hlas.stav.chyba = String(e.message || e); }
   };
-  Hlas.ma = (v, t) => !!(index && index[klic(v, t)]);
+  Hlas.ma = t => !!(index && index[klic('z', t)]);
+  // věty, které nemají nahrávku (pro doplnění při příští aktualizaci) – vidí je rodič v panelu
+  function zapisChybi(t) {
+    try {
+      const k = 'mestecko-chybi', a = JSON.parse(localStorage.getItem(k) || '[]');
+      if (!a.includes(t)) { a.push(t); localStorage.setItem(k, JSON.stringify(a.slice(-400))); }
+    } catch (e) {}
+  }
+  Hlas.chybejici = () => { try { return JSON.parse(localStorage.getItem('mestecko-chybi') || '[]'); } catch (e) { return []; } };
 
   function dekoduj(data) {
     return new Promise((res, rej) => {
@@ -1363,11 +1371,11 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
       if (!p) continue;
       const t = typeof p === 'string' ? p : p.t, v = (typeof p === 'string' ? 'z' : p.v) || 'z';
       if (!Hlas.zapnuto) { await cekej(250 + 35 * t.length); continue; }
-      const k = klic(v, t);
+      const k = klic('z', t);   // nahrávky jsou jedním hlasem (Zuzana), klíč je jen podle textu
       if (index && ac && index[k]) {
         try { const ab = await buffer(k); if (my !== gen) return false; await hrajBuffer(ab); }
         catch (e) { if (my !== gen) return false; await tts(t); }
-      } else { await tts(t); }
+      } else { if (index) zapisChybi(t); await tts(t); }
       if (my !== gen) return false;
       await cekej(160);
     }
@@ -1716,7 +1724,7 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
       for (let a = 2; a <= c.L.max; a++) for (let b = 1; b < a; b++) komb.push([a, b]);
       const [a, b] = c.vyberNove(komb, x => x.join('-'));
       const v = c.vyberNove(veciMista(c, 'zvire'), x => x.n);
-      return { a, b, z: a - b, v, vlastniZadani: true, zadani: ['Pozor, dívej se!', `Bylo jich ${N(a)} a ${N(b)} zmizelo.`, `Kolik ${v.g} zůstalo?`],
+      return { a, b, z: a - b, v, vlastniZadani: true, zadani: ['Pozor, dívej se!', `${Nc(a)} mínus ${N(b)}.`, `Kolik ${v.g} zůstalo?`],
         ok: `${Nc(a)} mínus ${N(b)} je ${N(a - b)}.`, rada: 'Spočítej, co ještě zůstalo.' };
     },
     async render(c, r) {
@@ -2228,16 +2236,17 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
         let a = rnd(1, 4), b = rnd(1, 4); if (a + b < 3) b = 3 - a;
         const druhy = [{ v: DB.vec[x], n: a }, { v: DB.vec[y], n: b }];
         return { nad, druhy,
-          zadani: [`Dej ${nad.kam} ${kusu(a, x)} a ${kusu(b, y)}.`],
-          ok: [`${cap(kusu(a, x))} a ${kusu(b, y)}. Přesně tak!`],
+          // věta v krátkých dílech: méně různých nahrávek, zní pořád přirozeně
+          zadani: [`Dej ${nad.kam}`, `${kusu(a, x)}`, `a ${kusu(b, y)}.`],
+          ok: ['Přesně tak! Všechno sedí.'],
           rada: 'Počítej každé zvlášť. Já budu počítat s tebou.' };
       }
       const x = c.vyberNove(veci, v => 'v' + v);
       const n = c.vyberNove(rozsah(L.min, L.max), v => 'p' + v);
       const druhy = [{ v: DB.vec[x], n }];
       return { nad, druhy,
-        zadani: [vyber(['', 'Davídku, ']) + `dej ${nad.kam} ${kusu(n, x)}.`].map(cap),
-        ok: [`${Nc(n)}! Přesně tak.`],
+        zadani: [`Dej ${nad.kam}`, `${kusu(n, x)}.`],
+        ok: [`${Nc(n)}!`, 'Přesně tak.'],
         rada: `Potřebujeme ${N(n)}. Počítej se mnou.` };
     },
     render(c, r) {
@@ -2473,13 +2482,13 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
         const [a, b] = zamichej(pool).slice(0, 2);
         const ca = rnd(1, 5), cb = rnd(Math.max(1, 3 - ca), Math.min(5, 10 - ca));
         return { veci: [{ v: a, cena: ca }, { v: b, cena: cb }], cena: ca + cb,
-          zadani: [`${cap(a.n)} stojí ${korun(ca)} a ${b.n} ${korun(cb)}.`, 'Kolik zaplatíš dohromady?'],
+          zadani: [`${cap(a.n)} stojí`, `${korun(ca)}.`, `${cap(b.n)} stojí`, `${korun(cb)}.`, 'Kolik zaplatíš dohromady?'],
           ok: [`Zaplatil jsi ${korun(ca + cb)}. Děkuju!`], rada: 'Zaplať nejdřív jedno, potom druhé.' };
       }
       const v = c.vyberNove(pool, x => 'v' + x.n);
       const cena = c.vyberNove(rozsah(L.min, L.max), x => 'c' + x);
       return { veci: [{ v, cena }], cena,
-        zadani: [`${cap(v.n)} stojí ${korun(cena)}.`, vyber(['Zaplať, Davídku.', 'Dej na pult správné peníze.', 'Zaplatíš?'])],
+        zadani: [`${cap(v.n)} stojí`, `${korun(cena)}.`, vyber(['Zaplať, Davídku.', 'Dej na pult správné peníze.', 'Zaplatíš?'])],
         ok: [`Zaplatil jsi ${korun(cena)}. Děkuju!`], rada: L.dvojky ? 'Dvojka jsou dvě koruny. Počítej se mnou.' : 'Dej na pult tolik korunek, kolik je na cenovce.' };
     },
     render(c, r) {
@@ -4594,7 +4603,10 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
   function panelRodice() {
     const p = $('#rodice'), kap = aktualni() || { i: 0, kriz: [] };
     const hlas = Hlas.ttsHlas ? Hlas.ttsHlas() : null;
-    const hl = hlas ? `Mluví hlas <b>${hlas.name}</b>.` : 'Český hlas v zařízení nebyl nalezen.';
+    const chybi = Hlas.chybejici ? Hlas.chybejici() : [];
+    const hl = Hlas.stav.nacteno
+      ? `Namluvené věty: <b>${Hlas.stav.klipu}</b> (${Hlas.stav.hlasy}). Bez nahrávky zatím ${chybi.length} vět${chybi.length ? `, ty říká hlas zařízení <details><summary>zobrazit</summary><textarea readonly rows="5" style="width:100%">${chybi.join('\n')}</textarea></details>` : ''}.`
+      : (hlas ? `Mluví hlas zařízení <b>${hlas.name}</b>.` : 'Český hlas v zařízení nebyl nalezen.');
     const typy = Object.values(U.akty).map(T => {
       const s = S.typy[T.id]; if (!s || !s.kola) return '';
       return `<tr><td>${T.nazev}</td><td>${s.m + 1} / ${T.urovne.length}</td><td>${s.kola}</td><td>${Math.round(100 * s.prvni / s.kola)} %</td></tr>`;
@@ -4606,7 +4618,7 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
       <p>Naučená písmenka: <b class="pismo-mini">${pismena}</b></p>
       ${typy ? `<div class="tab-obal"><table><thead><tr><th>Aktivita</th><th>Úroveň</th><th>Kol</th><th>Napoprvé</th></tr></thead><tbody>${typy}</tbody></table></div>` : '<p class="maly">Statistiky se objeví po první misi.</p>'}
       <div class="radek"><span>Hlas</span><label class="prepinac"><input type="checkbox" id="chk-hlas" ${S.hlas ? 'checked' : ''}> mluví nahlas</label></div>
-      <p class="maly">${hl} Lepší hlas na iPadu: Nastavení → Přístupnost → Předčítaný obsah → Hlasy → Čeština → stáhnout Zuzana (vylepšená nebo prémiová).</p>
+      <p class="maly">${hl}</p>
       <div class="radek"><span>Denní limit misí</span><span class="krok"><button type="button" class="mini" id="lim-minus">−</button><b>${S.limit || 'bez limitu'}</b><button type="button" class="mini" id="lim-plus">+</button></span></div>
       <p class="maly">Postup se ukládá jen v tomto prohlížeči. Na plochu iPadu: Safari → Sdílet → Přidat na plochu.</p>
       <div class="tlacitka">
@@ -4655,6 +4667,8 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
     let rt = null;
     window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (!$('#obr-mapa').hidden) renderMapa(); }, 200); });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    // aplikace na ploše má předem namluvené věty (Zuzana vylepšená); jinde mluví hlas zařízení
+    if (document.querySelector('link[rel="manifest"]')) Hlas.nacti('audio/');
     // jako aplikace na ploše: uložit hru do zařízení, aby šla i bez internetu
     if ('serviceWorker' in navigator && document.querySelector('link[rel="manifest"]') && (location.protocol === 'https:' || location.hostname === 'localhost')) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
