@@ -1,8 +1,8 @@
 /* Uloží hru do iPadu, aby jako aplikace na ploše fungovala i bez internetu.
    VERZE doplní tools/build.mjs; po nahrání nové verze se hra při dalším spuštění sama aktualizuje. */
-const VERZE = '64f97c99b8';
+const VERZE = '426ffcd322';
 const CACHE = 'mestecko-' + VERZE;
-const SOUBORY = ["./","index.html","manifest.webmanifest","ikona-180.png","ikona-192.png","ikona-512.png","audio/index.json","audio/audio-0.bin","audio/audio-1.bin","audio/audio-2.bin","audio/audio-3.bin","audio/audio-4.bin","audio/audio-5.bin"];
+const SOUBORY = ["./","index.html","manifest.webmanifest","ikona-180.png","ikona-192.png","ikona-512.png","audio/index.json","audio/audio-0.bin","audio/audio-1.bin","audio/audio-2.bin","audio/audio-3.bin","audio/audio-4.bin","audio/audio-5.bin","audio/audio-6.bin","audio/audio-7.bin","audio/audio-8.bin","audio/audio-9.bin","audio/audio-10.bin","audio/audio-11.bin"];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SOUBORY.map(u => new Request(u, { cache: 'reload' })))));
