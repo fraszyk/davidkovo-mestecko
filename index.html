@@ -1690,7 +1690,7 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
-<script>window.MESTECKO_VERZE = '2026-11-10 08:39';</script>
+<script>window.MESTECKO_VERZE = '2026-11-10 09:32';</script>
 <script>
 /* Davídkovo městečko – databáze obsahu.
    Všechen mluvený text hry vzniká jen z tohoto souboru a z ukoly.js,
@@ -2240,7 +2240,11 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
   };
 
   // polozky: 'text' | {t, v} | pole; v = 'z' (vypravěčka) nebo 'm'. Vrací true, když dohrálo bez přerušení.
-  Hlas.rekni = async function (polozky) {
+  // promise právě běžícího mluvení – aby šlo počkat, až se dořekne (vysvětlení se nesmí useknout)
+  let bezi = Promise.resolve(true);
+  Hlas.dokonci = () => bezi;
+  Hlas.rekni = function (polozky) { bezi = mluv(polozky); return bezi; };
+  async function mluv(polozky) {
     Hlas.stop();
     const my = gen;
     if (!Array.isArray(polozky)) polozky = [polozky];
@@ -2267,7 +2271,7 @@ button.m-kostka:active { transform: translate(3px, 3px) rotate(var(--rot, 0deg))
       await cekej(160);
     }
     return my === gen;
-  };
+  }
 
   /* ---------- zvukové efekty ---------- */
   function ton(f, d, typ = 'triangle', kdy = 0, hl = 0.16) {
@@ -2643,6 +2647,36 @@ window.ZVUKY_DATA = {
   const { el, E, tl, tecky, hop, volby, moznostiCisel, cisla, pocitadlo, veciMista, tvarSvg, balonek, adjAcc, adjNom, znamaPismena } = U.h;
   const RADA_POCITANI = 'Ťukni prstíkem na každý obrázek a počítej se mnou.';
 
+  /* ===== VYSVĚTLENÍ po správné odpovědi (krátké věty s málo proměnnými kvůli nahrávkám) ===== */
+  // „Počítáme: jedna, dva, tři.“
+  const pocitame = n => `Počítáme: ${Array.from({ length: n }, (_, i) => N(i + 1)).join(', ')}.`;
+  // „Tady je pět.“ / „Tady jsou tři.“ / „Tady je jedna.“
+  const tadyJe = n => `Tady ${n >= 2 && n <= 4 ? 'jsou' : 'je'} ${N(n)}.`;
+  // „Podívej, pět teček.“
+  const TECKY = ['', 'jedna tečka', 'dvě tečky', 'tři tečky', 'čtyři tečky'];
+  const teckyVeta = n => `Podívej, ${TECKY[n] || N(n) + ' teček'}.`;
+  const CIFRY = ['nula', 'jednička', 'dvojka', 'trojka', 'čtyřka', 'pětka', 'šestka', 'sedmička', 'osmička', 'devítka', 'desítka'];
+  // kategorie: co to je (o jedné věci) a co jsou ostatní
+  const KAT = {
+    ovoce: ['Je to ovoce.', 'Ostatní jsou ovoce.'],
+    zelenina: ['Je to zelenina.', 'Ostatní jsou zelenina.'],
+    zvire: ['Je to zvířátko.', 'Ostatní jsou zvířátka.'],
+    doprava: ['Je to dopravní prostředek.', 'Ostatní jsou dopravní prostředky.'],
+    sladke: ['Je to sladkost.', 'Ostatní jsou sladkosti.'],
+    obleceni: ['Je to oblečení.', 'Ostatní jsou oblečení.'],
+  };
+  const BARVA_JAKO = { cervena: 'jahoda', modra: 'nebe', zluta: 'sluníčko', zelena: 'tráva', oranzova: 'pomeranč', fialova: 'švestka', ruzova: 'prasátko', hneda: 'čokoláda', cerna: 'noc', bila: 'sníh' };
+  const TVAR_PROC = {
+    kruh: 'Kolečko je kulaté a nemá žádné rohy.',
+    ctverec: 'Čtverec má čtyři rohy a všechny strany stejně dlouhé.',
+    trojuhelnik: 'Trojúhelník má tři rohy a tři rovné strany.',
+    obdelnik: 'Obdélník má čtyři rohy. Dvě strany jsou dlouhé a dvě krátké.',
+    hvezda: 'Hvězdička má pět cípů.',
+    srdce: 'Srdíčko má nahoře dva obloučky a dole špičku.',
+  };
+  // „Ko, lo, to je kolo.“
+  const poKouscich = w => `${cap(w.s.join(', ').toLowerCase())}, to je ${w.n}.`;
+
   // rozmístí prvky volně po scéně (jako v časopise), bez překryvů
   function rozhod(scena, prvky) {
     const cols = prvky.length > 8 ? 5 : 4, rows = Math.ceil(Math.max(prvky.length, 6) / cols) + 1;
@@ -2666,7 +2700,7 @@ window.ZVUKY_DATA = {
       const v = c.vyberNove(pool, x => x.n);
       const n = c.vyberNove(Array.from({ length: c.L.max - c.L.min + 1 }, (_, i) => i + c.L.min), x => 'n' + x);
       const jine = zamichej(DB.VECI.filter(x => x.g && x !== v && x.k !== 'telo')).slice(0, c.L.jine || 0).map(x => ({ v: x, n: rnd(1, 4) }));
-      return { v, n, jine, zadani: jine.length ? `Kolik je tu jen ${v.g}? Ty ostatní nepočítej.` : `Kolik je tu ${v.g}?`, ok: Nc(n) + '!', rada: RADA_POCITANI };
+      return { v, n, jine, zadani: jine.length ? `Kolik je tu jen ${v.g}? Ty ostatní nepočítej.` : `Kolik je tu ${v.g}?`, ok: jine.length ? [pocitame(n), 'Ty ostatní jsme nepočítali.'] : pocitame(n), rada: RADA_POCITANI };
     },
     render(c, r) {
       const sc = el('div', 'karta z-scena'); c.stage.appendChild(sc);
@@ -2688,7 +2722,7 @@ window.ZVUKY_DATA = {
       const v = c.vyberNove(veciMista(c), x => x.n);
       const cil = mene ? a : b, jina = mene ? b : a;
       return { v, a, b, mene, cil, zadani: mene ? `Kde je méně ${v.g}?` : `Kde je víc ${v.g}?`,
-        ok: `${Nc(cil)} je ${mene ? 'méně' : 'víc'} než ${N(jina)}.`, rada: 'Zkus to spočítat prstíkem.' };
+        ok: [tadyJe(cil), `A tady ${N(jina)}.`, `${Nc(cil)} je ${mene ? 'méně' : 'víc'} než ${N(jina)}.`], rada: 'Zkus to spočítat prstíkem.' };
     },
     render(c, r) {
       const w = el('div', 'porovnej');
@@ -2714,7 +2748,7 @@ window.ZVUKY_DATA = {
     gen(c) {
       const n = c.vyberNove(Array.from({ length: c.L.max }, (_, i) => i + 1), x => 'c' + x);
       const kde = vyber(['na hasičském autě', 'na dveřích', 'na balónku', 'na dresu']);
-      return { n, zadani: `Najdi číslo ${N(n)}.`, ok: Nc(n) + '!', rada: 'Podívej se pořádně na tvar čísla.', kde };
+      return { n, zadani: `Najdi číslo ${N(n)}.`, ok: [`To je ${CIFRY[n]}.`, teckyVeta(n)], rada: 'Podívej se pořádně na tvar čísla.', kde };
     },
     render(c, r) {
       volby(c, zamichej(moznostiCisel(r.n, c.L.max, c.L.n)).map(v => ({ html: `<span class="cif velka">${v}</span>`, aria: String(v), spravne: v === r.n,
@@ -2731,7 +2765,7 @@ window.ZVUKY_DATA = {
       const [a, b] = c.vyberNove(komb, x => x.join('+'));
       const v = c.vyberNove(veciMista(c), x => x.n);
       return { a, b, s: a + b, v, zadani: [`${Nc(a)} a ještě ${N(b)}.`, `Kolik ${v.g} je to dohromady?`],
-        ok: `${Nc(a)} plus ${N(b)} je ${N(a + b)}.`, rada: RADA_POCITANI };
+        ok: [pocitame(a + b), `${Nc(a)} plus ${N(b)} je ${N(a + b)}.`], rada: RADA_POCITANI };
     },
     render(c, r) {
       const rad = el('div', 'priklad');
@@ -2752,7 +2786,7 @@ window.ZVUKY_DATA = {
       const [a, b] = c.vyberNove(komb, x => x.join('-'));
       const v = c.vyberNove(veciMista(c, 'zvire'), x => x.n);
       return { a, b, z: a - b, v, vlastniZadani: true, zadani: ['Pozor, dívej se!', `${Nc(a)} mínus ${N(b)}.`, `Kolik ${v.g} zůstalo?`],
-        ok: `${Nc(a)} mínus ${N(b)} je ${N(a - b)}.`, rada: 'Spočítej, co ještě zůstalo.' };
+        ok: [`${Nc(a)} mínus ${N(b)} je ${N(a - b)}.`, `Počítáme, co zůstalo: ${Array.from({ length: a - b }, (_, i) => N(i + 1)).join(', ')}.`], rada: 'Spočítej, co ještě zůstalo.' };
     },
     async render(c, r) {
       const p = el('div', 'pole'); c.stage.appendChild(p);
@@ -2776,7 +2810,7 @@ window.ZVUKY_DATA = {
       const pool = DB.VECI.filter(v => c.L.kat.includes(v.k));
       const v = c.vyberNove(pool, x => x.n);
       const zbytek = zamichej(pool.filter(x => x !== v && (!c.L.stejna || x.k === v.k)));
-      return { v, moz: zamichej([v, ...zbytek.slice(0, c.L.n - 1)]), zadani: kdeJe(v), ok: toJe(v), rada: 'Podívej se na všechny obrázky.' };
+      return { v, moz: zamichej([v, ...zbytek.slice(0, c.L.n - 1)]), zadani: kdeJe(v), ok: [toJe(v), KAT[v.k][0]], rada: 'Podívej se na všechny obrázky.' };
     },
     render(c, r) {
       volby(c, r.moz.map(x => ({ html: E(x.e, 'velke'), aria: x.n, spravne: x === r.v })), { trida: 'volby obrazky', ok: r.ok, rada: r.rada });
@@ -2790,7 +2824,7 @@ window.ZVUKY_DATA = {
       const pal = DB.BARVY.slice(0, c.L.b);
       const b = c.vyberNove(pal, x => x.id);
       return { b, moz: zamichej([b, ...zamichej(pal.filter(x => x !== b)).slice(0, c.L.n - 1)]),
-        zadani: `Ťukni na ${b.s}ý balónek.`, ok: cap(b.s) + 'á!', rada: 'Podívej se dobře na barvy.' };
+        zadani: `Ťukni na ${b.s}ý balónek.`, ok: [cap(b.s) + 'á!', `${cap(b.s)}á jako ${BARVA_JAKO[b.id]}.`], rada: 'Podívej se dobře na barvy.' };
     },
     render(c, r) {
       volby(c, r.moz.map(x => ({ html: balonek(x.hex), aria: x.s + 'á', spravne: x === r.b, cls: 'balonek' })), { trida: 'volby balonky', ok: r.ok, rada: r.rada });
@@ -2805,14 +2839,14 @@ window.ZVUKY_DATA = {
       const t = c.vyberNove(tvary, x => x.id);
       if (!c.L.barva) {
         const moz = zamichej([t, ...zamichej(tvary.filter(x => x !== t)).slice(0, c.L.n - 1)]).map(x => ({ t: x, b: vyber(barvy) }));
-        return { cil: { t }, moz, zadani: `Najdi ${t.acc}.`, ok: `To je ${t.nom}.`, rada: 'Podívej se, kolik má rohů.' };
+        return { cil: { t }, moz, zadani: `Najdi ${t.acc}.`, ok: [`To je ${t.nom}.`, TVAR_PROC[t.id]], rada: 'Podívej se, kolik má rohů.' };
       }
       const b = vyber(barvy), moz = [{ t, b }];
       const k = x => x.t.id + x.b.id, pridej = x => { if (!moz.some(m => k(m) === k(x))) moz.push(x); };
       pridej({ t, b: vyber(barvy.filter(x => x !== b)) });
       pridej({ t: vyber(tvary.filter(x => x !== t)), b });
       while (moz.length < c.L.n) pridej({ t: vyber(tvary), b: vyber(barvy) });
-      return { cil: { t, b }, moz: zamichej(moz), zadani: `Najdi ${adjAcc(b.s, t.rod)} ${t.acc}.`, ok: `To je ${adjNom(b.s, t.rod)} ${t.nom}.`, rada: 'Hledej správný tvar i barvu.' };
+      return { cil: { t, b }, moz: zamichej(moz), zadani: `Najdi ${adjAcc(b.s, t.rod)} ${t.acc}.`, ok: [`To je ${adjNom(b.s, t.rod)} ${t.nom}.`, TVAR_PROC[t.id]], rada: 'Hledej správný tvar i barvu.' };
     },
     render(c, r) {
       volby(c, r.moz.map(x => ({ html: tvarSvg(x.t.id, x.b.hex), aria: x.t.nom, spravne: x.t === r.cil.t && (!r.cil.b || x.b === r.cil.b) })), { trida: 'volby tvary', ok: r.ok, rada: r.rada });
@@ -2826,7 +2860,7 @@ window.ZVUKY_DATA = {
     gen(c) {
       const v = c.vyberNove(OBRAZKOVE, x => x.n);
       const pool = OBRAZKOVE.filter(x => x !== v && x.k === v.k);
-      return { v, moz: zamichej([v, ...zamichej(pool).slice(0, c.L.n - 1)]), zadani: 'Najdi druhou půlku obrázku.', ok: toJe(v), rada: 'Která půlka k obrázku pasuje?' };
+      return { v, moz: zamichej([v, ...zamichej(pool).slice(0, c.L.n - 1)]), zadani: 'Najdi druhou půlku obrázku.', ok: [toJe(v), 'Obě půlky k sobě pasují.'], rada: 'Která půlka k obrázku pasuje?' };
     },
     render(c, r) {
       const ram = el('div', 'karta spoj-ram'), slot = el('div', 'pul slot', '<b>?</b>');
@@ -2844,7 +2878,7 @@ window.ZVUKY_DATA = {
       const v = c.vyberNove(OBRAZKOVE, x => x.n);
       const pool = OBRAZKOVE.filter(x => x !== v && x.k === v.k);
       const obr = c.L.obracene && Math.random() < 0.5;
-      return { v, obr, moz: zamichej([v, ...zamichej(pool).slice(0, c.L.n - 1)]), zadani: obr ? 'Který stín patří k obrázku?' : 'Čí je to stín?', ok: toJe(v), rada: 'Podívej se na tvar stínu.' };
+      return { v, obr, moz: zamichej([v, ...zamichej(pool).slice(0, c.L.n - 1)]), zadani: obr ? 'Který stín patří k obrázku?' : 'Čí je to stín?', ok: [toJe(v), `Stín má úplně stejný tvar jako ${v.n}.`], rada: 'Podívej se na tvar stínu.' };
     },
     render(c, r) {
       c.stage.appendChild(el('div', 'karta predloha', E(r.v.e, r.obr ? 'obri' : 'obri stin')));
@@ -2862,10 +2896,10 @@ window.ZVUKY_DATA = {
       const vel = { 3: [0.45, 0.72, 1], 4: [0.38, 0.58, 0.79, 1], 5: [0.34, 0.5, 0.66, 0.83, 1] }[c.L.n];
       if (c.L.rad) {
         const odMale = Math.random() < 0.6;
-        return { v, rad: true, odMale, vel: zamichej(vel), zadani: odMale ? 'Ťukej postupně od nejmenšího po největší.' : 'Ťukej postupně od největšího po nejmenší.', ok: 'Krásně seřazené!', rada: odMale ? 'Začni tím úplně nejmenším.' : 'Začni tím úplně největším.' };
+        return { v, rad: true, odMale, vel: zamichej(vel), zadani: odMale ? 'Ťukej postupně od nejmenšího po největší.' : 'Ťukej postupně od největšího po nejmenší.', ok: ['Krásně seřazené!', odMale ? 'Každý další je o kousek větší.' : 'Každý další je o kousek menší.'], rada: odMale ? 'Začni tím úplně nejmenším.' : 'Začni tím úplně největším.' };
       }
       const nej = vyber(['max', 'min']);
-      return { v, nej, vel: zamichej(vel), zadani: nej === 'max' ? 'Ťukni na největší.' : 'Ťukni na nejmenší.', ok: nej === 'max' ? 'Tohle je největší.' : 'Tohle je nejmenší.', rada: 'Porovnej, které je větší a které menší.' };
+      return { v, nej, vel: zamichej(vel), zadani: nej === 'max' ? 'Ťukni na největší.' : 'Ťukni na nejmenší.', ok: nej === 'max' ? ['Tohle je největší.', 'Je větší než všechny ostatní.'] : ['Tohle je nejmenší.', 'Je menší než všechny ostatní.'], rada: 'Porovnej, které je větší a které menší.' };
     },
     render(c, r) {
       if (!r.rad) {
@@ -2899,9 +2933,9 @@ window.ZVUKY_DATA = {
       const vz = c.vyberNove(c.L.vz, x => x);
       const tema = vyber(['barvy', 'veci', 'tvary']);
       let prvky;
-      if (tema === 'barvy') prvky = zamichej(DB.BARVY.slice(0, 7)).slice(0, 4).map(b => ({ k: b.id, html: `<span class="koralek" style="--b:${b.hex}"></span>` }));
-      else if (tema === 'veci') { const z = veciMista(c); const pool = z.length >= 4 ? z : DB.VECI.filter(v => v.k === 'ovoce'); prvky = zamichej(pool).slice(0, 4).map(v => ({ k: v.n, html: E(v.e) })); }
-      else { const b = zamichej(DB.BARVY.slice(0, 6)); prvky = zamichej(DB.TVARY).slice(0, 4).map((t, i) => ({ k: t.id, html: tvarSvg(t.id, b[i].hex) })); }
+      if (tema === 'barvy') prvky = zamichej(DB.BARVY.slice(0, 7)).slice(0, 4).map(b => ({ k: b.id, jm: b.s + 'ý korálek', html: `<span class="koralek" style="--b:${b.hex}"></span>` }));
+      else if (tema === 'veci') { const z = veciMista(c); const pool = z.length >= 4 ? z : DB.VECI.filter(v => v.k === 'ovoce'); prvky = zamichej(pool).slice(0, 4).map(v => ({ k: v.n, jm: v.n, pl: v.pl, html: E(v.e) })); }
+      else { const b = zamichej(DB.BARVY.slice(0, 6)); prvky = zamichej(DB.TVARY).slice(0, 4).map((t, i) => ({ k: t.id, jm: t.nom, html: tvarSvg(t.id, b[i].hex) })); }
       const mapa = {}; [...new Set(vz)].forEach((p, i) => { mapa[p] = prvky[i]; });
       const delka = vz.length * 2 + rnd(0, vz.length - 1);
       const seq = []; for (let i = 0; i < delka; i++) seq.push(mapa[vz[i % vz.length]]);
@@ -2909,7 +2943,7 @@ window.ZVUKY_DATA = {
       const pouzite = Object.values(mapa);
       const moz = zamichej([...new Set(pouzite), ...prvky.filter(p => !pouzite.includes(p))].slice(0, 3));
       if (!moz.includes(odp)) moz[0] = odp;
-      return { seq, odp, moz: zamichej(moz), zadani: 'Co bude v řadě dál?', ok: 'Řada pokračuje správně.', rada: 'Podívej se, co se pořád opakuje.' };
+      return { seq, odp, moz: zamichej(moz), zadani: 'Co bude v řadě dál?', ok: ['Řada se pořád opakuje.', `Proto teď ${odp.pl ? 'přijdou' : 'přijde'} ${odp.jm}.`], rada: 'Podívej se, co se pořád opakuje.' };
     },
     render(c, r) {
       const s = el('div', 'karta snurka');
@@ -2928,7 +2962,7 @@ window.ZVUKY_DATA = {
       const [ka, kb] = vyber(c.L.blizke ? daleko.concat(blizko) : daleko);
       const skup = zamichej(DB.VECI.filter(v => v.k === ka)).slice(0, c.L.n - 1);
       const jina = c.vyberNove(DB.VECI.filter(v => v.k === kb), x => x.n);
-      return { jina, moz: zamichej([...skup, jina]), zadani: 'Co sem nepatří?', ok: `${cap(jina.n)} sem nepatří!`, rada: 'Skoro všechno k sobě patří. Co je jiné?' };
+      return { jina, moz: zamichej([...skup, jina]), zadani: 'Co sem nepatří?', ok: [`${cap(jina.n)} sem nepatří!`, KAT[kb][0], KAT[ka][1]], rada: 'Skoro všechno k sobě patří. Co je jiné?' };
     },
     render(c, r) {
       volby(c, r.moz.map(x => ({ html: E(x.e, 'velke'), aria: x.n, spravne: x === r.jina })), { trida: 'volby obrazky', ok: r.ok, rada: r.rada });
@@ -2951,7 +2985,7 @@ window.ZVUKY_DATA = {
       const P = c.vyberNove(zn, x => x.p);
       const male = c.L.male && Math.random() < 0.5;
       const ostatni = zamichej(DB.PISMENA.filter(x => x !== P)).sort((a, b) => (zn.includes(b) ? 1 : 0) - (zn.includes(a) ? 1 : 0));
-      return { P, male, moz: zamichej([P, ...ostatni.slice(0, c.L.n - 1)]), zadani: male ? `Najdi malé písmenko ${P.jm}.` : `Najdi písmenko ${P.jm}.`, ok: cap(P.jm) + '!', rada: 'Vzpomeň si, jak písmenko vypadá.' };
+      return { P, male, moz: zamichej([P, ...ostatni.slice(0, c.L.n - 1)]), zadani: male ? `Najdi malé písmenko ${P.jm}.` : `Najdi písmenko ${P.jm}.`, ok: [cap(P.jm) + '!', `${cap(P.jm)} jako ${P.slovo}.`], rada: 'Vzpomeň si, jak písmenko vypadá.' };
     },
     render(c, r) {
       if (r.nove) {
@@ -2971,6 +3005,15 @@ window.ZVUKY_DATA = {
   });
 
   const pismenoSlova = n => DB.PISMENA.find(P => P.m === n.charAt(0).toLowerCase());
+  // „Poslouchej: aaa-uto.“ – jen u hlásek, které jde protáhnout (samohlásky a souvislé souhlásky);
+  // u ostatních (t, p, k, b, d, c, č…) by se natažení nedalo vyslovit, tak se vynechá
+  const NATAHNOUT = 'aeiouyámlnrsšzžvhjřf';
+  // stejně jako „Začíná na…“ (akt-svet.js): samohlásku protáhneme („aaa-uto“), u souhlásky zopakujeme první slabiku
+  // („ba, ba, banán“) – protaženou souhlásku by hlas Zuzana hláskoval („em em em“)
+  const SAMOHL_P = 'aáeéěiíyýoóuúů';
+  const prvniSlabika = n => { for (let i = 0; i < n.length; i++) { const ch = n[i]; if (SAMOHL_P.includes(ch)) return n.slice(0, i + 1);
+    if ((ch === 'r' || ch === 'l') && i > 0 && !SAMOHL_P.includes(n[i - 1]) && i + 1 < n.length && !SAMOHL_P.includes(n[i + 1])) return n.slice(0, i + 2); } return n; };
+  const natahni = n => (SAMOHL_P.includes(n[0]) ? `Poslouchej: ${n[0].repeat(3)}-${n.slice(1)}.` : `Poslouchej: ${prvniSlabika(n)}, ${prvniSlabika(n)}, ${n}.`);
   U.akt('prvni', {
     nazev: 'První písmenko', obor: 'jazyk',
     urovne: [{ t: 3, n: 3 }, { t: 4, n: 4 }],
@@ -2981,7 +3024,7 @@ window.ZVUKY_DATA = {
       const v = c.vyberNove(pool, x => x.n), P = pismenoSlova(v.n);
       let jine = zn.filter(x => x !== P);
       if (jine.length < c.L.n - 1) jine = DB.PISMENA.filter(x => x !== P);
-      return { v, P, moz: zamichej([P, ...zamichej(jine).slice(0, c.L.n - 1)]), zadani: `Na jaké písmenko začíná ${v.n}?`, ok: `${cap(v.n)} začíná na ${P.jm}.`, rada: 'Řekni to slovo pomalu. Co slyšíš úplně na začátku?' };
+      return { v, P, moz: zamichej([P, ...zamichej(jine).slice(0, c.L.n - 1)]), zadani: `Na jaké písmenko začíná ${v.n}?`, ok: [`${cap(v.n)} začíná na ${P.jm}.`, natahni(v.n)].filter(Boolean), rada: 'Řekni to slovo pomalu. Co slyšíš úplně na začátku?' };
     },
     render(c, r) {
       c.stage.appendChild(el('div', 'karta predloha', E(r.v.e, 'obri')));
@@ -2995,7 +3038,7 @@ window.ZVUKY_DATA = {
     gen(c) {
       const w = c.vyberNove(DB.TLESKANI.filter(x => x.s.length <= c.L.max), x => x.n);
       const nahlas = cap(w.s.join(', ')) + '.';
-      return { w, zadani: `Vytleskej slovo ${w.n}. Na každý kousek jedno tlesknutí.`, ok: [nahlas, ['', 'Jedna slabika.', 'Dvě slabiky.', 'Tři slabiky.', 'Čtyři slabiky.'][w.s.length]],
+      return { w, zadani: `Vytleskej slovo ${w.n}. Na každý kousek jedno tlesknutí.`, ok: [nahlas, ['', 'Jedna slabika, jedno tlesknutí.', 'Dvě slabiky, dvě tlesknutí.', 'Tři slabiky, tři tlesknutí.', 'Čtyři slabiky, čtyři tlesknutí.'][w.s.length]],
         rada: ['Řekni to slovo pomalu a tleskni na každý kousek.', nahlas] };
     },
     render(c, r) {
@@ -3018,6 +3061,7 @@ window.ZVUKY_DATA = {
   });
 
   const SOUHL = ['M', 'L', 'T', 'P', 'S', 'B', 'D', 'K', 'V', 'J', 'Z', 'H', 'R', 'N'], SAMOHL = ['A', 'O', 'U', 'E', 'I'];
+  const jmP = p => DB.PISMENA.find(P => P.p === p).jm;
   U.akt('slabiky', {
     nazev: 'Slabiky', obor: 'jazyk',
     urovne: [{ t: 4, n: 3, sam: 3 }, { t: 5, n: 4, sam: 5 }],
@@ -3027,7 +3071,7 @@ window.ZVUKY_DATA = {
       S.forEach(s => A.forEach(a => vse.push(s + a)));
       const cil = c.vyberNove(vse, x => x), moz = new Set([cil]);
       zamichej(vse.filter(x => x !== cil && (x[0] === cil[0] || x[1] === cil[1]))).concat(zamichej(vse)).forEach(x => { if (moz.size < c.L.n) moz.add(x); });
-      return { cil, moz: zamichej([...moz]), zadani: `Najdi slabiku ${cil.toLowerCase()}.`, ok: cap(cil.toLowerCase()) + '!', rada: 'Poslouchej první písmenko a potom to druhé.' };
+      return { cil, moz: zamichej([...moz]), zadani: `Najdi slabiku ${cil.toLowerCase()}.`, ok: [cap(cil.toLowerCase()) + '!', `Nejdřív ${jmP(cil[0])}, potom ${jmP(cil[1])}.`], rada: 'Poslouchej první písmenko a potom to druhé.' };
     },
     render(c, r) {
       volby(c, r.moz.map(x => ({ html: `<span class="pismo">${x}</span>`, aria: x, spravne: x === r.cil })), { trida: 'volby pismena slabiky', ok: r.ok, rada: r.rada });
@@ -3042,7 +3086,7 @@ window.ZVUKY_DATA = {
       const jm = c.L.slova === 'lehka' ? DB.SLOVA_LEHKA : DB.SLOVA_LEHKA.concat(DB.SLOVA_TEZSI);
       const w = slovo(c.vyberNove(jm, x => x));
       const navic = zamichej(DB.SLOVA.flatMap(x => x.s).filter(s => !w.s.includes(s))).slice(0, c.L.navic);
-      return { w, v: V(w.n), karty: zamichej([...w.s, ...navic]), zadani: `Slož slovo ${w.n}.`, ok: cap(w.n) + '!', rada: 'Řekni to slovo pomalu. Který kousek je první?' };
+      return { w, v: V(w.n), karty: zamichej([...w.s, ...navic]), zadani: `Slož slovo ${w.n}.`, ok: poKouscich(w), rada: 'Řekni to slovo pomalu. Který kousek je první?' };
     },
     render(c, r) {
       c.stage.appendChild(el('div', 'karta predloha', E(r.v ? r.v.e : '❓', 'obri')));
@@ -3074,7 +3118,7 @@ window.ZVUKY_DATA = {
     gen(c) {
       const jm = c.L.slova === 'lehka' ? DB.SLOVA_LEHKA : DB.SLOVA_LEHKA.concat(DB.SLOVA_TEZSI);
       const w = slovo(c.vyberNove(jm, x => x));
-      return { w, moz: zamichej([w, ...zamichej(jm.filter(x => x !== w.n)).slice(0, 2).map(slovo)]), zadani: 'Co je tady napsáno? Ťukni na obrázek.', ok: `Ano, je tu napsáno ${w.n}.`, rada: 'Ťukni na kousky slova a poslouchej.' };
+      return { w, moz: zamichej([w, ...zamichej(jm.filter(x => x !== w.n)).slice(0, 2).map(slovo)]), zadani: 'Co je tady napsáno? Ťukni na obrázek.', ok: poKouscich(w), rada: 'Ťukni na kousky slova a poslouchej.' };
     },
     render(c, r) {
       const k = el('div', 'karta napis');
@@ -3170,6 +3214,7 @@ window.ZVUKY_DATA = {
   const tecek = n => (n === 1 ? 'jednu tečku' : n === 2 ? 'dvě tečky' : n <= 4 ? N(n) + ' tečky' : N(n) + ' teček');
   const jeTecek = n => (n === 1 ? 'Je tam jedna tečka.' : n <= 4 ? `Jsou tam ${n === 2 ? 'dvě' : N(n)} tečky.` : `Je tam ${N(n)} teček.`);
   const rozsah = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  const odpocet = n => cap(rozsah(1, n).map(N).join(', ')) + '.';   // „Jedna, dva, tři.“ (vysvětlení počítání)
   const mistoVeci = c => ((c.misto && c.misto.veci) || []);
   const ceka = (c, ms) => (c.cekej ? c.cekej(ms) : new Promise(r => setTimeout(r, ms)));
 
@@ -3265,7 +3310,8 @@ window.ZVUKY_DATA = {
         return { nad, druhy,
           // věta v krátkých dílech: méně různých nahrávek, zní pořád přirozeně
           zadani: [`Dej ${nad.kam}`, `${kusu(a, x)}`, `a ${kusu(b, y)}.`],
-          ok: ['Přesně tak! Všechno sedí.'],
+          // vysvětlení ze stejných dílů jako zadání (žádné nové nahrávky kromě „Dal jsi …“)
+          ok: [`Dal jsi ${nad.kam}`, `${kusu(a, x)}`, `a ${kusu(b, y)}.`, 'Přesně tak! Všechno sedí.'],
           rada: 'Počítej každé zvlášť. Já budu počítat s tebou.' };
       }
       const x = c.vyberNove(veci, v => 'v' + v);
@@ -3273,7 +3319,7 @@ window.ZVUKY_DATA = {
       const druhy = [{ v: DB.vec[x], n }];
       return { nad, druhy,
         zadani: [`Dej ${nad.kam}`, `${kusu(n, x)}.`],
-        ok: [`${Nc(n)}!`, 'Přesně tak.'],
+        ok: [`Dal jsi ${nad.kam}`, `${kusu(n, x)}.`, 'Přesně tolik jsme potřebovali.'],
         rada: `Potřebujeme ${N(n)}. Počítej se mnou.` };
     },
     render(c, r) {
@@ -3367,7 +3413,10 @@ window.ZVUKY_DATA = {
       const zadani = pozpatku
         ? ['Tenhle vláček počítá pozpátku.', mezery.length > 1 ? 'Která čísla chybí?' : 'Které číslo chybí?']
         : [vyber(['Vagónky mají čísla po řadě.', 'Výpravčí očísloval vagónky.', 'Vláček veze vagónky s čísly.']), mezery.length > 1 ? 'Která čísla chybí?' : 'Které číslo chybí?'];
-      return { rada, mezery, pozpatku, zadani, ok: ['Vláček je celý. Tú tú, jede se!'] };
+      // vysvětlení: co chybělo + celá řada nahlas (po řadě / pozpátku)
+      const ok = [cap(rada.map(N).join(', ')) + '.', 'Vláček je celý. Tú tú, jede se!'];
+      if (mezery.length === 1) ok.unshift(`Chybělo číslo ${N(rada[mezery[0]])}.`);
+      return { rada, mezery, pozpatku, zadani, ok };
     },
     render(c, r) {
       const trat = el('div', 'm-trat');
@@ -3444,7 +3493,7 @@ window.ZVUKY_DATA = {
       const n = c.vyberNove(rozsah(c.L.min, c.L.max), x => 'n' + x);
       return { z, n, vlastniZadani: true,
         zadani: [vyber(['Poslouchej, Davídku.', 'Pozor, poslouchej.', 'Ticho, poslouchej.']), z.ot],
-        ok: [`${z.ok} ${DB.krat[n]}.`],
+        ok: n > 1 ? [`${z.ok} ${DB.krat[n]}.`, odpocet(n)] : [`${z.ok} ${DB.krat[n]}.`],
         rada: 'Poslechni si to znovu a počítej se mnou.' };
     },
     async render(c, r) {
@@ -3518,13 +3567,13 @@ window.ZVUKY_DATA = {
         const ca = rnd(1, 5), cb = rnd(Math.max(1, 3 - ca), Math.min(5, 10 - ca));
         return { veci: [{ v: a, cena: ca }, { v: b, cena: cb }], cena: ca + cb,
           zadani: [`${cap(a.n)} stojí`, `${korun(ca)}.`, `${cap(b.n)} stojí`, `${korun(cb)}.`, 'Kolik zaplatíš dohromady?'],
-          ok: [`Zaplatil jsi ${korun(ca + cb)}. Děkuju!`], rada: 'Zaplať nejdřív jedno, potom druhé.' };
+          ok: [`${Nc(ca)} a ${N(cb)} je ${N(ca + cb)}.`, `Zaplatil jsi ${korun(ca + cb)}. Děkuju!`], rada: 'Zaplať nejdřív jedno, potom druhé.' };
       }
       const v = c.vyberNove(pool, x => 'v' + x.n);
       const cena = c.vyberNove(rozsah(L.min, L.max), x => 'c' + x);
       return { veci: [{ v, cena }], cena,
         zadani: [`${cap(v.n)} stojí`, `${korun(cena)}.`, vyber(['Zaplať, Davídku.', 'Dej na pult správné peníze.', 'Zaplatíš?'])],
-        ok: [`Zaplatil jsi ${korun(cena)}. Děkuju!`], rada: L.dvojky ? 'Dvojka jsou dvě koruny. Počítej se mnou.' : 'Dej na pult tolik korunek, kolik je na cenovce.' };
+        ok: [`${cap(v.n)} stojí`, `${korun(cena)}.`, `Zaplatil jsi ${korun(cena)}. Děkuju!`], rada: L.dvojky ? 'Dvojka jsou dvě koruny. Počítej se mnou.' : 'Dej na pult tolik korunek, kolik je na cenovce.' };
     },
     render(c, r) {
       const L = c.L, M = c.misto || {};
@@ -3653,10 +3702,11 @@ window.ZVUKY_DATA = {
         const pocet = rnd(3, 4);
         const jine = zamichej(rozsah(1, 6).filter(x => x !== n)).slice(0, pocet - 1);
         return { n, kostky: zamichej([n, ...jine]), zadani: [`Najdi kostku, která má ${tecek(n)}.`],
-          ok: [jeTecek(n)], rada: `Hledáme ${tecek(n)}. Spočítej tečky na každé kostce.` };
+          ok: n > 1 ? [jeTecek(n), odpocet(n)] : [jeTecek(n)], rada: `Hledáme ${tecek(n)}. Spočítej tečky na každé kostce.` };
       }
       return { n, zadani: t === 'blik' ? ['Dívej se pozorně! Kostka se hned schová.', 'Kolik na ní bylo teček?'] : ['Hodím kostkou.', 'Kolik teček padlo?'],
-        ok: [t === 'blik' ? jeTecek(n).replace('Je tam', 'Byla tam').replace('Jsou tam', 'Byly tam').replace(/^Byla tam (\S+) teček/, 'Bylo tam $1 teček') : jeTecek(n)], rada: t === 'blik' ? 'Ťukni na kostku a podívej se znovu.' : 'Ťukej na tečky a počítej se mnou.' };
+        ok: [t === 'blik' ? jeTecek(n).replace('Je tam', 'Byla tam').replace('Jsou tam', 'Byly tam').replace(/^Byla tam (\S+) teček/, 'Bylo tam $1 teček') : jeTecek(n)]
+          .concat(n > 1 ? [odpocet(n)] : []), rada: t === 'blik' ? 'Ťukni na kostku a podívej se znovu.' : 'Ťukej na tečky a počítej se mnou.' };
     },
     async render(c, r) {
       const t = c.L.typ;
@@ -3719,7 +3769,7 @@ window.ZVUKY_DATA = {
       const kdo = mene ? { e: '🐭', t: 'Myška má malé bříško. Chce menší číslo.' } : { e: '🐊', t: 'Krokodýl má hlad. Chce větší číslo.' };
       return { a, b, mene, cil, kdo,
         zadani: [kdo.t, mene ? 'Které číslo je menší?' : 'Které číslo je větší?'],
-        ok: [`${Nc(cil)} je ${mene ? 'menší' : 'větší'} než ${N(jina)}.`],
+        ok: [`${Nc(cil)} je ${mene ? 'menší' : 'větší'} než ${N(jina)}.`, `${Nc(cil)} má ${mene ? 'méně' : 'víc'} teček.`],
         rada: mene ? 'Menší číslo má méně teček. Kde je jich míň?' : 'Větší číslo má víc teček. Kde je jich víc?' };
     },
     render(c, r) {
@@ -3884,7 +3934,7 @@ window.ZVUKY_DATA = {
       const poradi2 = c.L.mix ? zamichej(zbyle) : null;
       return { vlastniZadani: true, veci, ztracena, poradi2, moznosti: zamichej([ztracena, ...jine]),
         zadani: [oslov('Dobře se dívej!'), 'Zapamatuj si, co tu je.'], otazka: 'Co zmizelo?',
-        ok: [toJe(ztracena)], rada: 'Vzpomeň si, co tu bylo předtím.' };
+        ok: [toJe(ztracena), 'Předtím to tu bylo, a pak to zmizelo.'], rada: 'Vzpomeň si, co tu bylo předtím.' };
     },
     async render(c, r) {
       const R = root(c, 'h-zmiz-hra');
@@ -4548,21 +4598,21 @@ window.ZVUKY_DATA = {
 
   /* ================= 1. KRMENÍ ================= */
   const KRMENI = [
-    { z: '🐰', zn: 'zajíček', j: '🥕', jn: 'mrkev', d: 'Chroup chroup, děkuju!' },
-    { z: '🐶', zn: 'pejsek', j: '🦴', jn: 'kost', d: 'Haf haf, děkuju!' },
-    { z: '🐱', zn: 'kočička', j: '🐟', jn: 'rybička', d: 'Mňau, děkuju!' },
-    { z: '🐒', zn: 'opice', j: '🍌', jn: 'banán', d: 'Mňam, banánek! Děkuju.' },
-    { z: '🐻', zn: 'medvěd', j: '🍯', jn: 'med', d: 'Mňam, medík! Děkuju.' },
-    { z: '🐭', zn: 'myška', j: '🧀', jn: 'sýr', d: 'Píp píp, děkuju!' },
-    { z: '🐿️', zn: 'veverka', j: '🌰', jn: 'oříšek', d: 'Mňam, oříšek! Děkuju.' },
-    { z: '🐔', zn: 'slepička', j: '🌽', jn: 'kukuřice', d: 'Kokodák, děkuju!' },
-    { z: '🐼', zn: 'panda', j: '🎋', jn: 'bambus', d: 'Mňam, bambus! Děkuju.' },
-    { z: '🐝', zn: 'včelka', j: '🌻', jn: 'kytička', d: 'Bzzz, děkuju!' },
-    { z: '🐴', zn: 'koník', j: '🍎', jn: 'jablíčko', d: 'Íhaha, děkuju!' },
-    { z: '🐦', zn: 'ptáček', j: '🪱', jn: 'žížala', d: 'Čimčarára, děkuju!' },
-    { z: '🐄', zn: 'kráva', j: '🌾', jn: 'seno', d: 'Bú, děkuju!' },
-    { z: '🐸', zn: 'žába', j: '🪰', jn: 'moucha', d: 'Kvák, děkuju!' },
-    { z: '🐛', zn: 'housenka', j: '🍃', jn: 'lísteček', d: 'Mňam, lísteček! Děkuju.' },
+    { z: '🐰', zn: 'zajíček', j: '🥕', jn: 'mrkev', d: 'Chroup chroup, děkuju!', p: 'Zajíček má rád mrkev.' },
+    { z: '🐶', zn: 'pejsek', j: '🦴', jn: 'kost', d: 'Haf haf, děkuju!', p: 'Pejsek má rád kosti.' },
+    { z: '🐱', zn: 'kočička', j: '🐟', jn: 'rybička', d: 'Mňau, děkuju!', p: 'Kočička má ráda rybičky.' },
+    { z: '🐒', zn: 'opice', j: '🍌', jn: 'banán', d: 'Mňam, banánek! Děkuju.', p: 'Opice má ráda banány.' },
+    { z: '🐻', zn: 'medvěd', j: '🍯', jn: 'med', d: 'Mňam, medík! Děkuju.', p: 'Medvěd má rád med.' },
+    { z: '🐭', zn: 'myška', j: '🧀', jn: 'sýr', d: 'Píp píp, děkuju!', p: 'Myška má ráda sýr.' },
+    { z: '🐿️', zn: 'veverka', j: '🌰', jn: 'oříšek', d: 'Mňam, oříšek! Děkuju.', p: 'Veverka má ráda oříšky.' },
+    { z: '🐔', zn: 'slepička', j: '🌽', jn: 'kukuřice', d: 'Kokodák, děkuju!', p: 'Slepička zobe kukuřici.' },
+    { z: '🐼', zn: 'panda', j: '🎋', jn: 'bambus', d: 'Mňam, bambus! Děkuju.', p: 'Panda jí bambus.' },
+    { z: '🐝', zn: 'včelka', j: '🌻', jn: 'kytička', d: 'Bzzz, děkuju!', p: 'Včelka sbírá sladký nektar z kytiček.' },
+    { z: '🐴', zn: 'koník', j: '🍎', jn: 'jablíčko', d: 'Íhaha, děkuju!', p: 'Koník má rád jablíčka.' },
+    { z: '🐦', zn: 'ptáček', j: '🪱', jn: 'žížala', d: 'Čimčarára, děkuju!', p: 'Ptáček má rád žížaly.' },
+    { z: '🐄', zn: 'kráva', j: '🌾', jn: 'seno', d: 'Bú, děkuju!', p: 'Kráva jí seno.' },
+    { z: '🐸', zn: 'žába', j: '🪰', jn: 'moucha', d: 'Kvák, děkuju!', p: 'Žába chytá mouchy.' },
+    { z: '🐛', zn: 'housenka', j: '🍃', jn: 'lísteček', d: 'Mňam, lísteček! Děkuju.', p: 'Housenka jí lístečky.' },
   ];
   // najedené zvířátko se ozve skutečným zvukem (js/zvuky.js); bez nahrávky zůstává původní „pop“
   const KRMENI_ZVUK = { 'pejsek': 'pes', 'kočička': 'kocka', 'opice': 'opice', 'slepička': 'slepice', 'včelka': 'vcela',
@@ -4606,7 +4656,7 @@ window.ZVUKY_DATA = {
       vyb = vyb.concat(vyberVic(c, KRMENI.filter(k => !vyb.includes(k)), n - vyb.length, x => 'k' + x.z));
       vyb = zamichej(vyb);
       const navic = zamichej(KRMENI.filter(k => !vyb.includes(k))).slice(0, c.L.navic || 0).map(k => k.j);
-      return { cile: vyb.map(k => ({ e: k.z, ok: k.j, d: k.d, zn: k.zn })), kusy: zamichej([...vyb.map(k => k.j), ...navic]),
+      return { cile: vyb.map(k => ({ e: k.z, ok: k.j, d: k.d, zn: k.zn, p: k.p })), kusy: zamichej([...vyb.map(k => k.j), ...navic]),
         zadani: n > 2 ? 'Zvířátka mají hlad. Dej každému to, co nejradši jí.' : 'Zvířátka mají hlad. Přetáhni každému jeho jídlo.',
         ok: 'Všechna zvířátka jsou najedená!', rada: 'Přemýšlej, co které zvířátko nejradši jí.' };
     },
@@ -4645,11 +4695,14 @@ window.ZVUKY_DATA = {
         if (hotovo === cile.length) {
           // zbylé (nepotřebné) jídlo uklidíme
           kusy.forEach(x => { if (!x.dataset.hotovo) x.classList.add('s-pryc'); });
-          if (zid) G.Zvuk.prehraj(zid).then(() => { if (c.aktivni()) c.spravne([k._t.d, r.ok], k); });
-          else c.spravne([k._t.d, r.ok], k);
+          // vysvětlení (proč to zvířátko jí právě tohle) je v k._t.p, u párů je vysvětlením už k._t.d
+          const vety = [k._t.d, k._t.p, r.ok].filter(Boolean);
+          if (zid) G.Zvuk.prehraj(zid).then(() => { if (c.aktivni()) c.spravne(vety, k); });
+          else c.spravne(vety, k);
         } else {
-          if (zid) G.Zvuk.prehraj(zid).then(hral => { if (!hral) zvuk('pop'); if (c.aktivni()) c.rekniKratce(k._t.d); });
-          else { zvuk('pop'); c.rekniKratce(k._t.d); }
+          const vety = [k._t.d, k._t.p].filter(Boolean);
+          if (zid) G.Zvuk.prehraj(zid).then(hral => { if (!hral) zvuk('pop'); if (c.aktivni()) c.rekniKratce(vety); });
+          else { zvuk('pop'); c.rekniKratce(vety); }
           napovez();
         }
         return true;
@@ -4671,16 +4724,20 @@ window.ZVUKY_DATA = {
   const TRIDY = {
     ovoce: { a: { ik: '🍎', v: ['🍐', '🍊', '🍋', '🍌', '🍓', '🍒', '🍇', '🍑', '🥝', '🍉', '🍍'] },
       b: { ik: '🥕', v: ['🥒', '🍅', '🌽', '🥔', '🧅', '🥦', '🫑', '🧄', '🥬', '🍆'] },
-      zadani: 'Ovoce dej do košíku s jablíčkem a zeleninu do košíku s mrkví.', rada: 'Je to ovoce, nebo zelenina?' },
+      zadani: 'Ovoce dej do košíku s jablíčkem a zeleninu do košíku s mrkví.', rada: 'Je to ovoce, nebo zelenina?',
+      vysv: ['Ovoce je u jablíčka, protože jablíčko je taky ovoce.', 'Zelenina je u mrkve, protože mrkev je taky zelenina.'] },
     voda: { a: { ik: '🌊', v: ['🐟', '🐙', '🐬', '🐳', '🦈', '🐡', '🐠', '🦑', '🦞'] },
       b: { ik: '🌳', v: ['🐶', '🐱', '🐄', '🐷', '🐴', '🦁', '🐘', '🦒', '🐰', '🐻', '🦊', '🐑', '🦔'] },
-      zadani: 'Kdo žije ve vodě a kdo na souši? Vodní zvířátka dej k vlnám, ostatní ke stromu.', rada: 'Umí to zvířátko žít pod vodou?' },
+      zadani: 'Kdo žije ve vodě a kdo na souši? Vodní zvířátka dej k vlnám, ostatní ke stromu.', rada: 'Umí to zvířátko žít pod vodou?',
+      vysv: ['Rybičky a další vodní zvířátka žijí ve vodě.', 'Ostatní zvířátka žijí na souši.'] },
     leta: { a: { ik: '☁️', v: ['✈️', '🚁', '🚀', '🎈', '🪁', '🦋', '🐦', '🦅', '🛸', '🐝'] },
       b: { ik: '🛣️', v: ['🚗', '🚌', '🚂', '🚜', '🚲', '🚒', '🚑', '🛴', '🚕', '🏎️'] },
-      zadani: 'Co létá ve vzduchu a co jezdí po zemi? Co létá, dej k mráčku. Co jezdí, dej k silnici.', rada: 'Létá to, nebo to jezdí?' },
+      zadani: 'Co létá ve vzduchu a co jezdí po zemi? Co létá, dej k mráčku. Co jezdí, dej k silnici.', rada: 'Létá to, nebo to jezdí?',
+      vysv: ['Co létá ve vzduchu, je u mráčku.', 'Co jezdí po zemi, je u silnice.'] },
     leto: { a: { ik: '☀️', v: ['🩳', '👙', '🕶️', '🏖️', '🍉', '🍦', '🩴', '⛱️', '🌻'] },
       b: { ik: '❄️', v: ['🧤', '🧣', '⛄', '🎿', '🛷', '🧥', '🎄', '🧊'] },
-      zadani: 'Co patří do léta a co do zimy? Letní věci dej ke sluníčku, zimní k vločce.', rada: 'Hodí se to, když je teplo, nebo když mrzne?' },
+      zadani: 'Co patří do léta a co do zimy? Letní věci dej ke sluníčku, zimní k vločce.', rada: 'Hodí se to, když je teplo, nebo když mrzne?',
+      vysv: ['Letní věci se hodí, když je teplo.', 'Zimní věci se hodí, když mrzne.'] },
   };
 
   U.akt('trideni', {
@@ -4690,22 +4747,24 @@ window.ZVUKY_DATA = {
     gen(c) {
       const mod = c.vyberNove(c.L.mody, x => 'm' + x);
       const n = c.L.n, na = Math.random() < 0.5 ? Math.floor(n / 2) : Math.ceil(n / 2);
-      let A, B, zadani, rada;
+      let A, B, zadani, rada, vysv;
       if (mod === 'barvy') {
         const [ba, bb] = zamichej(Object.keys(BARVY_VECI)).slice(0, 2);
         A = { barva: BAR[ba].hex, v: BARVY_VECI[ba] }; B = { barva: BAR[bb].hex, v: BARVY_VECI[bb] };
         const sa = BAR[ba].s, sb = BAR[bb].s;
         zadani = `Roztřiď věci podle barvy. ${cap(sa)}é dej do ${sa}ého košíku a ${sb}é do ${sb}ého.`;
         rada = 'Podívej se, jakou to má barvu.';
+        const v_ = x => (/^ž/.test(x) ? 've' : 'v');
+        vysv = [`${cap(sa)}é věci jsou ${v_(sa)} ${sa}ém košíku a ${sb}é ${v_(sb)} ${sb}ém.`];
       } else {
-        const T = TRIDY[mod]; A = T.a; B = T.b; zadani = T.zadani; rada = T.rada;
+        const T = TRIDY[mod]; A = T.a; B = T.b; zadani = T.zadani; rada = T.rada; vysv = T.vysv;
         if (Math.random() < 0.5) { [A, B] = [B, A]; }
       }
       const kusy = zamichej([
         ...zamichej(A.v).slice(0, na).map(e => ({ e, k: 0 })),
         ...zamichej(B.v).slice(0, n - na).map(e => ({ e, k: 1 })),
       ]);
-      return { mod, kose: [A, B], kusy, zadani, ok: 'Všechno je roztříděné!', rada };
+      return { mod, kose: [A, B], kusy, zadani, ok: ['Všechno je roztříděné!', ...vysv], rada };
     },
     render(c, r) {
       const hromada = el('div', 's-hromada'), kose = el('div', 's-kose');
@@ -4872,6 +4931,29 @@ window.ZVUKY_DATA = {
     { h: 'Bubnuješ na něj paličkami bum bum. Co je to?', o: 'buben', e: '🥁', k: 'doma' },
   ];
   const jeTo = h => (h.pl ? `Jsou to ${h.o}!` : `Je to ${h.o}!`);
+  // proč je to právě ono – krátké vysvětlení po správné odpovědi (klíč = odpověď o)
+  const HAD_PROC = {
+    'žirafa': 'Tak dlouhý krk má jen žirafa.', 'slon': 'Dlouhý chobot má slon.', 'zajíček': 'Zajíček má dlouhé uši a skáče hop hop.',
+    'kráva': 'Kráva dělá bú a dává mléko.', 'slepička': 'Vajíčka snáší slepička.', 'pejsek': 'Haf haf štěká pejsek.',
+    'kočička': 'Mňouká a přede kočička.', 'žába': 'Kvák kvák dělá žába.', 'sova': 'Hů hů houká v noci sova.',
+    'šnek': 'Domeček na zádech nosí šnek.', 'želva': 'Tvrdý krunýř má želva.', 'ježek': 'Bodlinky na zádech má ježek.',
+    'včelka': 'Med dělají včelky.', 'rybička': 'Ploutve a šupiny má rybička.', 'lev': 'Velkou hřívu má lev.',
+    'prasátko': 'V blátě se rádo válí prasátko.', 'veverka': 'Oříšky si schovává veverka.', 'beruška': 'Beruška je červená a má černé tečky.',
+    'ovečka': 'Bé dělá ovečka.', 'zebra': 'Černé a bílé pruhy má zebra.', 'tučňák': 'Tučňák neumí létat, ale krásně plave.',
+    'koník': 'Na koníkovi se dá jezdit.', 'chobotnice': 'Osm chapadel má chobotnice.', 'banán': 'Opice mají banány moc rády.',
+    'citron': 'Citron je hodně kyselý.', 'mrkev': 'Mrkev roste pod zemí.', 'jahoda': 'Jahoda má na sobě malinká zrníčka.',
+    'meloun': 'Meloun je zvenku zelený a uvnitř červený.', 'zmrzlina': 'Zmrzlina je studená a v teple taje.', 'vajíčko': 'Vajíčko snese slepička.',
+    'sýr': 'V sýru bývají díry.', 'med': 'Med je sladký a dělají ho včelky.', 'dort': 'Dort se svíčkami dostaneme k narozeninám.',
+    'hasičské auto': 'Hasičské auto jezdí hasit oheň.', 'sanitka': 'Sanitka veze nemocné do nemocnice.', 'letadlo': 'Letadlo má křídla a létá vysoko.',
+    'vlak': 'Vlak jezdí po kolejích.', 'kolo': 'Kolo má pedály a jezdí se na něm šlapáním.', 'raketa': 'Do vesmíru letí raketa.',
+    'traktor': 'S traktorem jezdí farmář na pole.', 'loďka': 'Loďka má plachtu a pluje po vodě.', 'vrtulník': 'Vrtulník má na střeše vrtuli.',
+    'sluníčko': 'Sluníčko ve dne svítí a hřeje.', 'měsíc': 'V noci na obloze svítí měsíc.', 'duha': 'Duha je po dešti a má spoustu barev.',
+    'vločka': 'Vločky padají v zimě.', 'houba': 'Houba má klobouček.', 'strom': 'Strom má kmen, větve a listy.',
+    'klíč': 'Klíčem odemykáme dveře.', 'deštník': 'Deštník nás schová před deštěm.', 'postel': 'V posteli spinkáme.',
+    'kartáček': 'Kartáčkem si čistíme zoubky.', 'nůžky': 'Nůžkami stříháme papír.', 'míč': 'Do míče kopeme a dáváme góly.',
+    'medvídek': 'Medvídek je měkký a chlupatý.', 'svíčka': 'Svíčka svítí, když ji zapálíme.', 'rukavice': 'Rukavice hřejí na rukou.',
+    'balónek': 'Balónek se nafukuje a umí uletět.', 'buben': 'Na buben se bubnuje paličkami.',
+  };
 
   U.akt('hadanky', {
     nazev: 'Hádanky', obor: 'jazyk',
@@ -4884,7 +4966,7 @@ window.ZVUKY_DATA = {
       const jine = zamichej(HADANKY.filter(x => x.k !== h.k && smi(x)));
       // od 4 možností je jedna ze stejné skupiny (těžší), jinak jen z jiných skupin
       const ruse = c.L.n >= 4 ? [...stejne.slice(0, 1), ...jine.slice(0, c.L.n - 2)] : jine.slice(0, c.L.n - 1);
-      return { h, moz: zamichej([h, ...ruse]), zadani: h.h, ok: jeTo(h), rada: 'Poslechni si hádanku ještě jednou a dobře přemýšlej.' };
+      return { h, moz: zamichej([h, ...ruse]), zadani: h.h, ok: [jeTo(h), HAD_PROC[h.o]].filter(Boolean), rada: 'Poslechni si hádanku ještě jednou a dobře přemýšlej.' };
     },
     render(c, r) {
       const otaz = el('div', 'karta s-hadanka', '<span class="s-otaznik">?</span>');
@@ -5112,6 +5194,22 @@ window.ZVUKY_DATA = {
   const NEJISTE = ['zajíček', 'míč', 'hrad', 'taxík', 'čepice', 'med', 'loďka'];
   const SOUROZ = { S: 'Š', Š: 'S', Z: 'Ž', Ž: 'Z', C: 'Č', Č: 'C', R: 'Ř', Ř: 'R' };
   const pismenoSlova = n => (/^ch/i.test(n) ? null : DB.PISMENA.find(P => P.m === n.charAt(0).toLowerCase()) || null);
+  // „Poslouchej: aaa-uto.“ / „Poslouchej: ba, ba, banán.“ – samohlásku protáhneme, u souhlásky zopakujeme první slabiku
+  // (protažená souhláska typu „mmm“ by se v nahrávce hláskovala „em em em“; slabika „mr“ taky, proto slabičné r/l bereme i s další souhláskou: „mrk“)
+  const SAMOHL = 'aáeéěiíyýoóuúů';
+  function prvniSlabika(n) {
+    for (let i = 0; i < n.length; i++) {
+      const ch = n[i];
+      if (SAMOHL.includes(ch)) return n.slice(0, i + 1);
+      if ((ch === 'r' || ch === 'l') && i > 0 && !SAMOHL.includes(n[i - 1]) && i + 1 < n.length && !SAMOHL.includes(n[i + 1])) return n.slice(0, i + 2);
+    }
+    return n;
+  }
+  function poslouchej(n) {
+    if (SAMOHL.includes(n[0])) return `Poslouchej: ${n[0].repeat(3)}-${n.slice(1)}.`;
+    const s = prvniSlabika(n);
+    return `Poslouchej: ${s}, ${s}, ${n}.`;
+  }
   const SLOVA_ZN = DB.PRVNI.filter(n => !NEJISTE.includes(n)).map(V).filter(v => v && pismenoSlova(v.n));
 
   U.akt('zacina_na', {
@@ -5130,7 +5228,7 @@ window.ZVUKY_DATA = {
         ruse.push(x);
       }
       return { P, v, moz: zamichej([v, ...ruse]), zadani: `Najdi obrázek, který začíná na ${P.jm}.`,
-        ok: `${cap(v.n)} začíná na ${P.jm}!`, rada: 'Řekni si každý obrázek pomalu nahlas. Co slyšíš úplně na začátku?' };
+        ok: [`${cap(v.n)} začíná na ${P.jm}!`, poslouchej(v.n)], rada: 'Řekni si každý obrázek pomalu nahlas. Co slyšíš úplně na začátku?' };
     },
     render(c, r) {
       const k = el('div', 'karta s-pismeno', `<span class="pismo s-velke">${r.P.p}</span><span class="pismo s-male">${r.P.m}</span>`);
@@ -5331,7 +5429,7 @@ window.ZVUKY_DATA = {
       const kusy = [];
       pocasi.forEach(p => zamichej(OBLECENI.filter(x => x.p === p && !x.jen)).slice(0, 2).forEach(x => kusy.push(x)));
       return { m, pocasi, kusy: zamichej(kusy), zadani: 'Co se hodí k jakému počasí? Přetáhni každou věc ke správnému obrázku.',
-        ok: 'Všechno je na správném místě!', rada: 'Hodí se to, když svítí sluníčko, když prší, nebo když sněží?', hned: 'Sem to nepatří.' };
+        ok: 'Všechno je na správném místě!', rada: 'Hodí se to, když svítí sluníčko, když prší, nebo když sněží?', hned: 'Sem to nepatří.', vety: kusy.map(x => x.d) };
     },
     render(c, r) {
       if (r.m === 'obleceni') {
@@ -5362,8 +5460,9 @@ window.ZVUKY_DATA = {
         b.dataset.hotovo = '1'; b.classList.remove('tahatko', 'vybrany'); b.classList.add('t-pryc');
         k.querySelector('.t-kos-obsah').appendChild(el('span', 'emo t-v-kosi', b._x.e));
         hop(k); hotovo++;
-        if (hotovo === kusy.length) c.spravne(r.ok, k);
-        else { zvuk('pop'); napovez(); }
+        // proč to tam patří („Pod deštníkem nezmokneš.“), u poslední věci před pochvalou
+        if (hotovo === kusy.length) c.spravne([b._x.d, r.ok], k);
+        else { zvuk('pop'); c.rekniKratce(b._x.d); napovez(); }
         return true;
       }));
       c.stage.append(kose, hromada);
@@ -5868,7 +5967,7 @@ window.ZVUKY_DATA = {
       return {
         vlastniZadani: true, cil, moznosti: zamichej([cil, ...jine]),
         zadani: ['Poslouchej!', OTAZKA[cil.typ]],
-        ok: cil.ok, rada: 'Poslechni si to ještě jednou. Ťukni na ucho.',
+        ok: [cil.ok, cil.dela], rada: 'Poslechni si to ještě jednou. Ťukni na ucho.',
       };
     },
     async render(c, r) {
@@ -6146,7 +6245,7 @@ window.ZVUKY_DATA = {
       const nerym = ruse.map(x => `${cap(x.n)} a ${T.n}? To se nerýmuje.`);
       return { T, R, moz, nerym,
         zadani: [`Co se rýmuje se slovem ${T.n}?`, seznam(moz.map(x => x.n))],
-        ok: `${cap(T.n)} a ${R.n}. To se rýmuje!`,
+        ok: [`${cap(T.n)} a ${R.n}. To se rýmuje!`, `Obě slova na konci zní stejně: ${T.k}.`],
         rada: `Řekni si nahlas ${T.n} a pak každý obrázek. Které slovo zní na konci stejně?`,
         vety: [T.n, ...moz.map(x => x.n), ...nerym] };
     },
@@ -6182,6 +6281,7 @@ window.ZVUKY_DATA = {
     ['míč', '⚽'], ['klíč', '🔑'], ['pomeranč', '🍊'],
   ].map(([n, e]) => ({ n, e, P: pismeno(n.slice(-1).toUpperCase()) }));
   if (POSLEDNI.some(x => !x.P)) throw new Error('akt-cteni: slovo bez písmenka');
+  const KONEC_SAMO = 'aáeéěiíoóuú';
 
   U.akt('posledni', {
     nazev: 'Poslední hláska', obor: 'jazyk',
@@ -6200,7 +6300,9 @@ window.ZVUKY_DATA = {
       if (prvni && prvni !== P && SOUROZ[P.p] !== prvni.p && zn.includes(prvni) && Math.random() < 0.6) ruse.push(prvni);
       for (const Q of zamichej(jine)) { if (ruse.length >= c.L.n - 1) break; if (!ruse.includes(Q)) ruse.push(Q); }
       return { w, P, moz: zamichej([P, ...ruse]),
-        zadani: `Na co končí slovo ${w.n}?`, ok: `${cap(w.n)} končí na ${P.jm}.`,
+        zadani: `Na co končí slovo ${w.n}?`,
+        // samohlásku na konci protáhneme („Poslouchej: kráv-aaa.“); protaženou souhlásku by nahrávka hláskovala, tak ji nenatahujeme
+        ok: [`${cap(w.n)} končí na ${P.jm}.`, ...(KONEC_SAMO.includes(w.n.slice(-1)) ? [`Poslouchej: ${w.n.slice(0, -1)}-${w.n.slice(-1).repeat(3)}.`] : [])],
         rada: 'Řekni to slovo pomalu. Co slyšíš úplně na konci?', vety: [w.n] };
     },
     render(c, r) {
@@ -6239,7 +6341,7 @@ window.ZVUKY_DATA = {
       const zacina = tri.map(v => `${cap(v.n)} začíná na ${P.jm}.`);
       return { P, odd, moz, zacina,
         zadani: [`Které slovo nezačíná na ${P.jm}?`, seznam(moz.map(v => v.n))],
-        ok: `${cap(odd.n)} začíná na ${odd.P.jm}!`,
+        ok: [`${cap(odd.n)} začíná na ${odd.P.jm}!`, `Ostatní slova začínají na ${P.jm}.`],
         rada: 'Řekni si každé slovo pomalu. Co slyšíš úplně na začátku?', vety: moz.map(v => v.n).concat(zacina) };
     },
     render(c, r) {
@@ -6442,7 +6544,7 @@ window.ZVUKY_DATA = {
       }
       return { s, k, sm, cil, typ: 'skok',
         zadani: [`Žabka sedí na čísle ${N(s)}.`, `Skočí o ${KAMEN[k]} ${sm > 0 ? 'dál' : 'zpátky'}. Kam doskočí?`],
-        ok: [`Hop! Žabka je na čísle ${N(cil)}.`],
+        ok: [`Hop! Žabka je na čísle ${N(cil)}.`, sm > 0 ? `${Nc(s)} a ${N(k)} je ${N(cil)}.` : `${Nc(s)} bez ${GEN[k]} je ${N(cil)}.`],
         rada: `Počítej skoky. Udělej prstem ${SKOKU[k]} ${sm > 0 ? 'dopředu' : 'dozadu'}.` };
     },
     render(c, r) {
@@ -6507,10 +6609,10 @@ window.ZVUKY_DATA = {
   const PREDMETY = {
     had: { r: 'ma', kt: 'Který had', ten: 'Tenhle had', uvod: 'Hadi se vyhřívají na sluníčku.',
       serad: 'Ťukej na hady od nejkratšího po nejdelšího.', hotovo: 'Hadi jsou seřazení od nejkratšího po nejdelšího.',
-      radaS: 'Najdi nejkratšího hada, který ještě nemá číslo.' },
+      radaS: 'Najdi nejkratšího hada, který ještě nemá číslo.', dalsi: 'Každý další had je delší.' },
     pastelka: { r: 'f', kt: 'Která pastelka', ten: 'Tahle pastelka', uvod: 'Podívej se na pastelky.',
       serad: 'Ťukej na pastelky od nejkratší po nejdelší.', hotovo: 'Pastelky jsou seřazené od nejkratší po nejdelší.',
-      radaS: 'Najdi nejkratší pastelku, která ještě nemá číslo.' },
+      radaS: 'Najdi nejkratší pastelku, která ještě nemá číslo.', dalsi: 'Každá další pastelka je delší.' },
   };
   const VAHA = [
     [['🐘', 'slon'], ['🐭', 'myška']], [['🐻', 'medvěd'], ['🐰', 'zajíček']], [['🐄', 'kráva'], ['🐔', 'slepička']],
@@ -6535,14 +6637,15 @@ window.ZVUKY_DATA = {
         const [T, M] = par;
         return { typ, par, lehci, tezsiVlevo: Math.random() < 0.5,
           zadani: ['Zvířátka se houpou na houpačce.', lehci ? 'Kdo je lehčí?' : 'Kdo je těžší?'],
-          ok: [lehci ? `${cap(M[1])} je lehčí než ${T[1]}.` : `${cap(T[1])} je těžší než ${M[1]}.`, 'Podívej, houpačka se naklonila.'],
+          ok: [lehci ? `${cap(M[1])} je lehčí než ${T[1]}.` : `${cap(T[1])} je těžší než ${M[1]}.`, 'Podívej, houpačka se naklonila.',
+            lehci ? 'Kdo je lehčí, ten vyletí nahoru.' : 'Kdo je těžší, ten klesne dolů.'],
           rada: lehci ? 'Menší zvíře bývá lehčí.' : 'Větší zvíře bývá těžší.' };
       }
       if (typ === 'serad') {
         const p = vyber(['had', 'pastelka']), P = PREDMETY[p];
         const v = hodnoty(3, 3, 10, Math.max(2, L.rozdil));
         c.vyberNove(['serad:' + p], x => x);
-        return { typ, p, v, zadani: [P.uvod, P.serad], ok: [P.hotovo], rada: P.radaS };
+        return { typ, p, v, zadani: [P.uvod, P.serad], ok: [P.hotovo, P.dalsi], rada: P.radaS };
       }
       const n = vyber(L.n), min = Math.random() < 0.5, nej = n > 2;
       c.vyberNove([typ + ':' + (min ? 'min' : 'vic') + n], x => x);
@@ -6552,16 +6655,16 @@ window.ZVUKY_DATA = {
       const pr = (a, b) => (nej ? 'nej' + (min ? b : a) : (min ? b : a));
       if (typ === 'delka') {
         const p = vyber(['had', 'pastelka']), P = PREDMETY[p], adj = pr('delší', 'kratší');
-        return { typ, p, v, cil, zadani: [P.uvod, `${P.kt} je ${adj}?`], ok: [`${P.ten} je ${adj}.`],
+        return { typ, p, v, cil, zadani: [P.uvod, `${P.kt} je ${adj}?`], ok: [`${P.ten} je ${adj}.`, nej ? (min ? 'Končí ze všech nejdřív.' : 'Sahá ze všech nejdál.') : (min ? 'Končí dřív.' : 'Sahá dál.')],
           rada: min ? 'Kratší končí dřív. Podívej se na konce.' : 'Delší sahá dál. Podívej se na konce.' };
       }
       if (typ === 'vyska') {
         const adj = pr('vyšší', 'nižší');
-        return { typ, v, cil, zadani: ['Postavili jsme věže z kostek.', `Která věž je ${adj}?`], ok: [`Tahle věž je ${adj}.`],
+        return { typ, v, cil, zadani: ['Postavili jsme věže z kostek.', `Která věž je ${adj}?`], ok: [`Tahle věž je ${adj}.`, `Má ${nej ? 'nej' : ''}${min ? 'méně' : 'víc'} kostek.`],
           rada: min ? 'Nižší věž je menší. Porovnej vršky.' : 'Vyšší věž sahá výš. Porovnej vršky.' };
       }
       const kol = nej ? (min ? 'nejméně' : 'nejvíc') : (min ? 'méně' : 'víc');
-      return { typ, v, cil, zadani: ['Nalili jsme vodu do skleniček.', `Ve které skleničce je ${kol} vody?`], ok: [`V téhle skleničce je ${kol} vody.`],
+      return { typ, v, cil, zadani: ['Nalili jsme vodu do skleniček.', `Ve které skleničce je ${kol} vody?`], ok: [`V téhle skleničce je ${kol} vody.`, `Voda v ní sahá ${nej ? 'ze všech nej' : ''}${min ? 'níž' : 'výš'}.`],
         rada: min ? 'Kde je voda níž, tam je jí méně.' : 'Kde sahá voda výš, tam je jí víc.' };
     },
     render(c, r) {
@@ -6676,7 +6779,7 @@ window.ZVUKY_DATA = {
           ok: [chybi, `Teď je jich ${N(cil)}.`], rada: 'Ťukej na prázdná políčka.' };
       }
       return { k, m, cil, dopln, zadani: [`Tady ${je} ${kusu(k, TECKA)}.`, `Kolik ještě chybí do ${GEN[cil]}?`],
-        ok: [`${Nc(k)} a ${N(m)} je ${N(cil)}.`], rada: 'Ťukej na prázdná políčka a počítej je.' };
+        ok: [chybi, `${Nc(k)} a ${N(m)} je ${N(cil)}.`], rada: 'Ťukej na prázdná políčka a počítej je.' };
     },
     render(c, r) {
       const w = el('div', 'm2-ramec karta' + (r.cil > 5 ? ' m2-r10' : ''));
@@ -6737,12 +6840,12 @@ window.ZVUKY_DATA = {
   /* ================= POCITY ================= */
   // m = mužský rod (1. pád), f = ženský rod, a = mužský životný 4. pád („najdi smutného medvídka“)
   const CITY = {
-    vesely: { e: '😀', m: 'veselý', f: 'veselá', a: 'veselého' },
-    smutny: { e: '😢', m: 'smutný', f: 'smutná', a: 'smutného' },
-    nastvany: { e: '😠', m: 'naštvaný', f: 'naštvaná', a: 'naštvaného' },
-    vystraseny: { e: '😨', m: 'vystrašený', f: 'vystrašená', a: 'vystrašeného' },
-    prekvapeny: { e: '😲', m: 'překvapený', f: 'překvapená', a: 'překvapeného' },
-    ospaly: { e: '😴', m: 'ospalý', f: 'ospalá', a: 'ospalého' },
+    vesely: { e: '😀', m: 'veselý', f: 'veselá', a: 'veselého', proc: 'Usmívá se a oči se mu smějí.' },
+    smutny: { e: '😢', m: 'smutný', f: 'smutná', a: 'smutného', proc: 'Pusu má dolů a teče mu slzička.' },
+    nastvany: { e: '😠', m: 'naštvaný', f: 'naštvaná', a: 'naštvaného', proc: 'Mračí se a je celý rudý.' },
+    vystraseny: { e: '😨', m: 'vystrašený', f: 'vystrašená', a: 'vystrašeného', proc: 'Má vykulené oči a pusa se mu třese.' },
+    prekvapeny: { e: '😲', m: 'překvapený', f: 'překvapená', a: 'překvapeného', proc: 'Má velké oči a pusu otevřenou jako ó.' },
+    ospaly: { e: '😴', m: 'ospalý', f: 'ospalá', a: 'ospalého', proc: 'Oči se mu zavírají a zívá.' },
   };
   const VSECHNY = Object.keys(CITY);
   // dvojice, které si malé dítě snadno splete – na začátku je nedáváme vedle sebe
@@ -6827,12 +6930,12 @@ window.ZVUKY_DATA = {
       const vety = moz.map(x => `Tenhle medvídek je ${CITY[x].m}.`);
       if (mod === 'najdi') {
         return { mod, cit, moz, barva, vety,
-          zadani: `Najdi ${C.a} medvídka.`, ok: `Ano, tenhle medvídek je ${C.m}.`,
+          zadani: `Najdi ${C.a} medvídka.`, ok: [`Ano, tenhle medvídek je ${C.m}.`, C.proc],
           rada: 'Podívej se medvídkům na oči a na pusu.' };
       }
       return { mod, cit, moz, barva, vety,
         zadani: `Jak se tváří medvídek? Je ${vycet(moz.map(x => CITY[x].m))}?`,
-        ok: `Ano, medvídek je ${C.m}.`, rada: 'Podívej se medvídkovi na oči a na pusu. Zkus se zatvářit stejně.' };
+        ok: [`Ano, medvídek je ${C.m}.`, C.proc], rada: 'Podívej se medvídkovi na oči a na pusu. Zkus se zatvářit stejně.' };
     },
     render(c, r) {
       if (r.mod === 'najdi') {
@@ -6858,67 +6961,67 @@ window.ZVUKY_DATA = {
      q2 = otázka, co udělat; o = možnosti (první je správná), okq = věta po správné odpovědi. */
   const PRIBEHY = [
     { id: 'hracka', sc: ['👦', '🧸', '👧'], vety: ['Kubík vzal Aničce hračku.', 'Anička pláče.'],
-      kdo: 'Anička', r: 'f', cit: 'smutny', ne: ['nastvany'],
+      kdo: 'Anička', r: 'f', cit: 'smutny', pc: 'Pláče, protože jí Kubík vzal hračku.', ne: ['nastvany'],
       q2: 'Co má Kubík udělat?', o: [['🤝', 'vrátit hračku'], ['😆', 'smát se'], ['🏃', 'utéct']],
       okq: 'Ano. Kubík vrátí hračku a Anička se zase usměje.' },
     { id: 'houpacka', sc: ['👧', '🛝', '👦'], vety: ['Ema se už dlouho houpe na houpačce.', 'Matyáš čeká a mračí se.'],
-      kdo: 'Matyáš', r: 'm', cit: 'nastvany', ne: ['smutny'],
+      kdo: 'Matyáš', r: 'm', cit: 'nastvany', pc: 'Mračí se, protože už dlouho čeká.', ne: ['smutny'],
       q2: 'Co má Ema udělat?', o: [['🔄', 'vystřídat se'], ['😝', 'vyplazit jazyk'], ['🙈', 'nevšímat si ho']],
       okq: 'Ano. Ema se s Matyášem vystřídá a teď se houpe on.' },
     { id: 'strcil', sc: ['🏃‍♂️', '💥', '👧'], vety: ['Matyáš běžel a omylem strčil do Emy.', 'Ema spadla a bolí ji koleno.'],
-      kdo: 'Ema', r: 'f', cit: 'smutny', ne: ['nastvany', 'vystraseny', 'prekvapeny'],
+      kdo: 'Ema', r: 'f', cit: 'smutny', pc: 'Spadla a bolí ji koleno.', ne: ['nastvany', 'vystraseny', 'prekvapeny'],
       q2: 'Co má Matyáš udělat?', o: [['🙏', 'omluvit se a pomoct jí vstát'], ['🏃', 'rychle utéct'], ['😆', 'smát se']],
       okq: 'Ano. Matyáš řekne: Promiň, Emo. A pomůže jí vstát.' },
     { id: 'pastelky', sc: ['👧', '🖍️', '🖍️'], vety: ['Aničce spadly pastelky.', 'Rozkutálely se po celé zemi.'],
-      kdo: 'Anička', r: 'f', cit: 'smutny', ne: ['prekvapeny', 'nastvany'],
+      kdo: 'Anička', r: 'f', cit: 'smutny', pc: 'Rozkutálely se jí všechny pastelky.', ne: ['prekvapeny', 'nastvany'],
       q2: 'Co můžeš udělat, Davídku?', o: [['🤲', 'pomoct je posbírat'], ['🦶', 'šlapat po nich'], ['🙈', 'dělat, že nevidíš']],
       okq: 'Ano. Spolu je posbíráte raz dva. Anička ti děkuje.' },
     { id: 'tma', sc: ['🌙', '🛏️', '👦'], vety: ['Večer zhasne světlo.', 'Kubík se pod peřinou bojí tmy.'],
-      kdo: 'Kubík', r: 'm', cit: 'vystraseny', ne: ['smutny'],
+      kdo: 'Kubík', r: 'm', cit: 'vystraseny', pc: 'Bojí se tmy.', ne: ['smutny'],
       q2: 'Co může Kubík udělat?', o: [['🧸', 'obejmout medvídka a zavolat maminku'], ['⚽', 'hrát fotbal'], ['🥁', 'bubnovat na buben']],
       okq: 'Ano. Maminka přijde, rozsvítí lampičku a strach je pryč.' },
     { id: 'kolobezka', sc: ['👧', '🛴', '🩹'], vety: ['Ema jezdila na koloběžce a spadla.', 'Má odřené koleno a pláče.'],
-      kdo: 'Ema', r: 'f', cit: 'smutny', ne: ['vystraseny', 'prekvapeny', 'nastvany'],
+      kdo: 'Ema', r: 'f', cit: 'smutny', pc: 'Bolí ji odřené koleno, a proto pláče.', ne: ['vystraseny', 'prekvapeny', 'nastvany'],
       q2: 'Co uděláš, Davídku?', o: [['🤗', 'utěšit ji a zavolat dospělého'], ['😆', 'smát se jí'], ['🛴', 'vzít jí koloběžku']],
       okq: 'Ano. Obejmeš ji a zavoláš maminku. Ema se hned cítí líp.' },
     { id: 'fronta', sc: ['👧', '👦', '🛝'], vety: ['Děti čekají ve frontě na skluzavku.', 'Kubík přiběhl a předběhl Aničku.', 'Anička se zlobí.'],
-      kdo: 'Anička', r: 'f', cit: 'nastvany', ne: ['smutny'],
+      kdo: 'Anička', r: 'f', cit: 'nastvany', pc: 'Kubík ji předběhl, a to není fér.', ne: ['smutny'],
       q2: 'Co má Kubík udělat?', o: [['🚶', 'postavit se na konec fronty'], ['🤪', 'dělat na ni obličeje'], ['💨', 'utéct pryč']],
       okq: 'Ano. Kubík se postaví na konec fronty. Na skluzavku se dostane každý.' },
     { id: 'pexeso', sc: ['👦', '🃏', '👧'], vety: ['Matyáš hrál s Emou pexeso.', 'Ema vyhrála a Matyáš se zlobí.'],
-      kdo: 'Matyáš', r: 'm', cit: 'nastvany', ne: ['smutny'],
+      kdo: 'Matyáš', r: 'm', cit: 'nastvany', pc: 'Prohrál, a tak se zlobí.', ne: ['smutny'],
       q2: 'Co může Matyáš udělat?', o: [['🤝', 'podat Emě ruku a hrát znovu'], ['💥', 'rozházet kartičky'], ['🙈', 'už nikdy nehrát']],
       okq: 'Ano. Matyáš řekne: Gratuluju! A hrají znovu. Příště může vyhrát on.' },
     { id: 'svacina', sc: ['👧', '🍓', '👦'], vety: ['Anička má plný sáček jahod.', 'Kubík zapomněl svačinu a má hlad.'],
-      kdo: 'Kubík', r: 'm', cit: 'smutny', ne: ['nastvany', 'ospaly'],
+      kdo: 'Kubík', r: 'm', cit: 'smutny', pc: 'Zapomněl svačinu a má hlad.', ne: ['nastvany', 'ospaly'],
       q2: 'Co může Anička udělat?', o: [['🍓', 'rozdělit se s ním'], ['🙈', 'schovat jahody'], ['😝', 'vyplazit jazyk']],
       okq: 'Ano. Anička se rozdělí a oba si pochutnají.' },
     { id: 'narozeniny', sc: ['🐕', '🎁', '🎂'], vety: ['Ťapka má narozeniny.', 'Otevře dárek a radostí vrtí ocáskem.'],
-      kdo: 'Ťapka', r: 'f', cit: 'vesely', ne: ['prekvapeny'],
+      kdo: 'Ťapka', r: 'f', cit: 'vesely', pc: 'Má radost z dárku a vrtí ocáskem.', ne: ['prekvapeny'],
       q2: 'Co má Ťapka říct?', o: [['🙏', 'poděkovat'], ['😠', 'zabručet'], ['🙈', 'nic neříct a odejít']],
       okq: 'Ano. Ťapka řekne: Haf, děkuju!' },
     { id: 'kyticka', sc: ['👦', '💐', '👵'], vety: ['Davídek zazvoní u babičky.', 'Babička otevře a nečekaně vidí velkou kytici.'],
-      kdo: 'babička', r: 'f', cit: 'prekvapeny', ne: ['vesely'],
+      kdo: 'babička', r: 'f', cit: 'prekvapeny', pc: 'Kytici vůbec nečekala.', ne: ['vesely'],
       q2: 'Co babička asi řekne?', o: [['🙏', 'děkuju'], ['😠', 'jdi pryč'], ['😴', 'dobrou noc']],
       okq: 'Ano. Babička řekne: Děkuju, Davídku! A pevně tě obejme.' },
     { id: 'spinkani', sc: ['👦', '🌙', '🧸'], vety: ['Kubík si večer dlouho hrál.', 'Teď zívá a padají mu oči.'],
-      kdo: 'Kubík', r: 'm', cit: 'ospaly', ne: ['smutny'],
+      kdo: 'Kubík', r: 'm', cit: 'ospaly', pc: 'Zívá a padají mu oči.', ne: ['smutny'],
       q2: 'Co má Kubík udělat?', o: [['🛏️', 'jít spát'], ['⚽', 'hrát fotbal'], ['🍭', 'jíst lízátko']],
       okq: 'Ano. Kubík si vyčistí zoubky a jde spát. Dobrou noc!' },
     { id: 'komin', sc: ['👦', '🧱', '👧'], vety: ['Matyáš omylem shodil Emě komín z kostek.', 'Ema se smutně dívá na hromádku kostek.'],
-      kdo: 'Ema', r: 'f', cit: 'smutny', ne: ['nastvany', 'prekvapeny'],
+      kdo: 'Ema', r: 'f', cit: 'smutny', pc: 'Spadl jí komín, který postavila.', ne: ['nastvany', 'prekvapeny'],
       q2: 'Co má Matyáš udělat?', o: [['🧱', 'omluvit se a pomoct postavit nový'], ['😆', 'smát se'], ['🏃', 'utéct']],
       okq: 'Ano. Matyáš řekne: Promiň. A spolu postaví ještě vyšší komín.' },
     { id: 'nova', sc: ['🏫', '👧', '🧸'], vety: ['Do školky přišla nová holčička.', 'Stojí sama v rohu a nikoho tu nezná.'],
-      kdo: 'holčička', r: 'f', cit: 'smutny', ne: ['vystraseny', 'ospaly'],
+      kdo: 'holčička', r: 'f', cit: 'smutny', pc: 'Je tu sama a nikoho nezná.', ne: ['vystraseny', 'ospaly'],
       q2: 'Co můžeš udělat, Davídku?', o: [['👋', 'pozdravit ji a pozvat ke hře'], ['🙈', 'nevšímat si jí'], ['😝', 'vyplazit jazyk']],
       okq: 'Ano. Řekneš: Ahoj, budeš si s námi hrát? A holčička se usměje.' },
     { id: 'bourka', sc: ['⛈️', '🐕', '🪑'], vety: ['Venku hřmí a blýská se.', 'Ťapka se třese a schovává se pod stůl.'],
-      kdo: 'Ťapka', r: 'f', cit: 'vystraseny', ne: ['smutny', 'prekvapeny'],
+      kdo: 'Ťapka', r: 'f', cit: 'vystraseny', pc: 'Bojí se bouřky, a proto se třese.', ne: ['smutny', 'prekvapeny'],
       q2: 'Co můžeš udělat, Davídku?', o: [['🤗', 'pohladit ji a být u ní'], ['📣', 'hlasitě křičet'], ['😆', 'smát se jí']],
       okq: 'Ano. Pohladíš ji a Ťapka se přestane bát.' },
     { id: 'hrad', sc: ['👧', '🏰', '🏖️'], vety: ['Anička postavila z písku velký hrad.', 'Tleská a skáče radostí.'],
-      kdo: 'Anička', r: 'f', cit: 'vesely', ne: ['prekvapeny'],
+      kdo: 'Anička', r: 'f', cit: 'vesely', pc: 'Povedl se jí hrad, a tak tleská a skáče.', ne: ['prekvapeny'],
       q2: 'Co uděláš, Davídku?', o: [['👏', 'pochválit ji'], ['🦶', 'rozkopat hrad'], ['🙈', 'odejít bez slova']],
       okq: 'Ano. Řekneš: To je krásný hrad! A Anička má ještě větší radost.' },
     { id: 'stul', sc: ['👩', '🥣', '👦'], vety: ['Maminka chystá večeři.', 'Má plné ruce talířů.'],
@@ -6926,7 +7029,7 @@ window.ZVUKY_DATA = {
       q2: 'Co můžeš udělat, Davídku?', o: [['🥄', 'přinést lžíce na stůl'], ['📺', 'koukat na televizi'], ['🙈', 'schovat se']],
       okq: 'Ano. Přineseš lžíce a maminka má radost, že jí pomáháš.' },
     { id: 'kaminek', sc: ['👦', '💎', '🌳'], vety: ['Kubík našel v parku třpytivý kamínek.', 'Otevře pusu a zavolá: Páni, to je krása!'],
-      kdo: 'Kubík', r: 'm', cit: 'prekvapeny', ne: ['vesely'],
+      kdo: 'Kubík', r: 'm', cit: 'prekvapeny', pc: 'Našel třpytivý kamínek a moc se diví.', ne: ['vesely'],
       q2: 'Co může Kubík udělat?', o: [['👀', 'ukázat kamínek kamarádům'], ['💢', 'hodit ho po někom'], ['😢', 'začít plakat']],
       okq: 'Ano. Kubík ukáže kamínek kamarádům a všichni se diví.' },
   ];
@@ -6945,7 +7048,7 @@ window.ZVUKY_DATA = {
         const tvar = x => CITY[x][p.r];
         out.c1 = { moz, ok: p.cit,
           otazka: `Jak se cítí ${p.kdo}? Je ${vycet(moz.map(tvar))}?`,
-          okv: `Ano, ${p.kdo} je ${tvar(p.cit)}.`, rada: `Poslouchej, co ${p.kdo} dělá. Jak by ses cítil ty?` };
+          okv: `Ano, ${p.kdo} je ${tvar(p.cit)}.`, pc: p.pc, rada: `Poslouchej, co ${p.kdo} dělá. Jak by ses cítil ty?` };
       }
       // 2. otázka: co udělat
       const o = zamichej([p.o[0], ...zamichej(p.o.slice(1)).slice(0, n - 1)]);
@@ -6987,7 +7090,7 @@ window.ZVUKY_DATA = {
           pocit.innerHTML = E(CITY[x].e);
           pocit.classList.add('e2-pocit-ukaz');
           nastavOk(c.stage, null);
-          c.rekni([r.c1.okv, r.c2.otazka]);
+          c.rekni([r.c1.okv, r.c1.pc, r.c2.otazka].filter(Boolean));
           setTimeout(() => {
             if (!c.aktivni()) return;
             w1.remove();
@@ -7144,7 +7247,7 @@ window.ZVUKY_DATA = {
       const zbytek = c.L.mix ? pool : pool.filter(x => x.tema === w.tema);
       const moz = zamichej(slovaDo(zbytek, c.L.n, w));
       return { w, moz, zadani: ['Poslouchej anglicky a najdi obrázek.', en(otazka(w))],
-        ok: [en('Yes!'), `${cap(w.cz)}!`, en(w.en)], hned: jeTo(w), rada: [en(w.en), en(otazka(w))] };
+        ok: [en('Yes!'), jeTo(w), en(w.en)], hned: jeTo(w), rada: [en(w.en), en(otazka(w))] };
     },
     render(c, r) {
       const wr = el('div', 'volby en-volby'); c.stage.appendChild(wr);
@@ -7254,7 +7357,8 @@ window.ZVUKY_DATA = {
       const moz = U.h.moznostiCisel(w.n, c.L.max, c.L.pocet, 1);
       return { w, n: w.n, v, moz,
         zadani: 'Počítáme anglicky! Ťukni na každý obrázek.',
-        ok: [en(w.en), `${cap(w.cz)}!`],
+        // vysvětlení: spočítáme to ještě jednou anglicky (do pěti), pak „Three je tři.“
+        ok: w.n <= 5 ? ['Spočítali jsme to:', ...CISLA.slice(0, w.n).map(x => en(x.en)), jeTo(w)] : [en(w.en), jeTo(w)],
         dotaz: [en('How many?'), 'Kolik jich je? Ťukni na číslo.'],
         pocty: CISLA.slice(0, c.L.max).map(x => en(x.en)),
         rada: 'Spočítej to se mnou. Ťukni na každý obrázek.' };
@@ -7511,7 +7615,7 @@ window.ZVUKY_DATA = {
     const out = new Set();
     const pridej = (v, p, kam, kde, slov) => {
       slov.forEach(s => out.add(`${s} ${v.a} ${kam}.`));
-      out.add(`${cap(v.n)} je ${kde}!`); out.add(`To je ${kde}.`); out.add(`Hledej ${POPIS[p]}, ${kde}.`);
+      out.add(`${cap(v.n)} je ${kde}!`); out.add(proc(p, kde)); out.add(`To je ${kde}.`); out.add(`Hledej ${POPIS[p]}, ${kde}.`);
       if (p !== 'mezi') out.add(`Najdi obrázek, kde je ${v.n} ${kde}.`);
     };
     KDE_VECI.forEach(v => {
@@ -7523,6 +7627,8 @@ window.ZVUKY_DATA = {
     });
     return (VETY_KDE = [...out]);
   }
+  // vysvětlení po úspěchu: co ta předložka znamená („Pod stolem, to je dole.“)
+  function proc(p, kde) { return `${cap(kde)}, to je ${POPIS[p]}.`; }
   // místa ve scéně: [{ key, ref, p, x, y, kde, kam }]
   function mistaSceny(refy) {
     const out = [];
@@ -7581,7 +7687,7 @@ window.ZVUKY_DATA = {
           return { p, kde: m.kde, html: scenaHtml(refy, 320, [{ e: v.e, x: m.x, y: m.y, p }]), hned: `To je ${m.kde}.` };
         });
         const kde = kdeF(R, k.p);
-        return tajne({ zadani: `Najdi obrázek, kde je ${v.n} ${kde}.`, ok: `${cap(v.n)} je ${kde}!`,
+        return tajne({ zadani: `Najdi obrázek, kde je ${v.n} ${kde}.`, ok: [`${cap(v.n)} je ${kde}!`, proc(k.p, kde)],
           rada: `Hledej ${POPIS[k.p]}, ${kde}.`, vety: moznosti.map(m => m.hned), vsechny: vetyKde() }, { rezim, refy, VW: 320, moznosti, spravne: k.p });
       }
       let refy, VW, ukoly;
@@ -7606,6 +7712,8 @@ window.ZVUKY_DATA = {
       const zadani = ukoly.length === 1 ? `${sloveso(ukoly[0].v, ukoly[0].m.p)} ${ukoly[0].v.a} ${ukoly[0].m.kam}.`
         : ukoly.map(u => `Dej ${u.v.a} ${u.m.kam}.`);
       const ok = ukoly.map(u => `${cap(u.v.n)} je ${u.m.kde}!`);
+      // u jedné věci přidej, co předložka znamená (u dvou věcí by to bylo moc vět)
+      if (ukoly.length === 1) ok.push(proc(ukoly[0].m.p, ukoly[0].m.kde));
       return tajne({ zadani, ok, rada: ukoly[0].rada,
         vety: [...ukoly.map(u => u.rada), ...mista.map(m => `To je ${m.kde}.`)], vsechny: vetyKde() }, { rezim, refy, VW, mista, ukoly });
     },
@@ -7975,6 +8083,11 @@ window.ZVUKY_DATA = {
   const VM_TVARY = DB.TVARY.filter(t => ['kruh', 'ctverec', 'trojuhelnik', 'hvezda', 'srdce'].includes(t.id));
   const dlazdice = (b, t) => tvarSvg(t.id, b.hex);
   const nazevDl = d => `${adjNom(d.b.s, d.t.rod)} ${d.t.nom}`;
+  // vysvětlení: barva řádky, tvar ve sloupečku / co v řádce chybělo
+  const VM_MN = { kruh: 'samá kolečka', ctverec: 'samé čtverce', trojuhelnik: 'samé trojúhelníky', hvezda: 'samé hvězdičky', srdce: 'samá srdíčka' };
+  const VM_CHYBEL = { m: 'chyběl', f: 'chyběla', n: 'chybělo' };
+  const vmProc = (mod, d) => [`V téhle řádce je všechno ${d.b.s}é.`,
+    mod === 'radky' ? `A v tomhle sloupečku jsou ${VM_MN[d.t.id]}.` : `A ${d.t.nom} v ní ještě ${VM_CHYBEL[d.t.rod]}.`];
 
   U.akt('vzor_mrizka', {
     nazev: 'Co chybí v mřížce?', obor: 'svet',
@@ -8005,7 +8118,7 @@ window.ZVUKY_DATA = {
       const moznosti = zamichej([{ b: spr.b, t: spr.t, ok: true }, ...jine.map(j => ({ b: j.b, t: j.t }))]);
       return tajne({
         zadani: [oslov('Co tu chybí?'), mod === 'radky' ? 'V každé řádce je stejná barva a v každém sloupečku stejný tvar.' : 'V každé řádce je stejná barva a každý tvar je v řádce i sloupečku jen jednou.'],
-        ok: `Ano, ${nazevDl(spr)}!`,
+        ok: [`Ano, ${nazevDl(spr)}!`, ...vmProc(mod, spr)],
         rada: mod === 'radky' ? 'Podívej se na barvu v řádce a na tvar ve sloupečku.' : 'Který tvar v téhle řádce ještě chybí?',
       }, { mod, mat, chybi, moznosti, spr });
     },
@@ -8585,8 +8698,8 @@ window.ZVUKY_DATA = {
     return {
       stage: stage(), L: T.urovne[lvl], lvl, tier: u.tier, misto: u.M, prog: S, uloz,
       vyberNove: vyberNove(a),
-      rekni: x => { bublina(x); return Hlas.rekni(x); },
-      rekniKratce: t => Hlas.rekni(t),
+      rekni: x => { if (u.zamceno && UK === u) return Promise.resolve(false); bublina(x); return Hlas.rekni(x); },
+      rekniKratce: t => (u.zamceno && UK === u ? Promise.resolve(false) : Hlas.rekni(t)),
       zamceno: () => UK !== u || u.zamceno || u.kolo !== kolo,
       aktivni: () => UK === u && u.kolo === kolo,
       cekej,
@@ -8619,10 +8732,15 @@ window.ZVUKY_DATA = {
     Zvuk.ok();
     const r = (e || stage()).getBoundingClientRect(); konfety(r.left + r.width / 2, r.top + r.height / 2);
     u.kolo++; postup();
+    // nejdřív nechat doznít, co aktivita právě říká (např. zvířátko děkuje), pak pochvala a VYSVĚTLENÍ;
+    // další kolo až po dořečení (nikdy neuseknout), nejdřív za chvilku kvůli radosti, s pojistkou proti zaseknutí
+    await Promise.race([Hlas.dokonci(), cekej(8000)]);
+    if (UK !== u) return;
     const vety = [P.vyber(DB.TEXTY.pochvaly), ...[ok || []].flat()];
     bublina(vety);
-    await Hlas.rekni(vety);
-    await cekej(400);
+    const dorekl = Hlas.rekni(vety);
+    await Promise.race([Promise.all([dorekl, cekej(S.hlas ? 1200 : 2200)]), cekej(25000)]);
+    await cekej(450);
     if (UK === u) dalsiKolo();
   }
 
@@ -9039,16 +9157,64 @@ window.ZVUKY_DATA = {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // aplikace na ploše má předem namluvené věty (Zuzana vylepšená); jinde mluví hlas zařízení
     if (document.querySelector('link[rel="manifest"]')) Hlas.nacti('audio/');
-    // jako aplikace na ploše: uložit hru do zařízení, aby šla i bez internetu
-    if ('serviceWorker' in navigator && document.querySelector('link[rel="manifest"]') && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
+    // uložení pro offline (service worker) a štítek stavu řeší společný modul offline.js – vkládá ho build do aplikace
     $('#start-pokrok').textContent = S.celkem ? `Splněno misí: ${S.celkem} · nálepek: ${S.nalepky.length}` : '';
     ukaz('start');
     if (location.hash === '#test') window.MESTECKO_TEST = { dalsi() { if (UK) { UK.kolo++; dalsiKolo(); } }, plan: () => UK && UK.plan };
   });
 })();
 
+</script>
+<style>
+/* Davídkovy hry – štítek stavu offline vpravo dole (společný pro všechny hry).
+   Hra s lištou dole může štítek zvednout proměnnou --of-dole (výchozí 10px), např. :root{--of-dole:170px}. */
+#offline{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(var(--of-dole,10px) + env(safe-area-inset-bottom,0px));z-index:30;
+  font:700 14px/1.2 var(--font,system-ui);color:#26244A;background:#fff;border:3px solid #26244A;border-radius:999px;padding:5px 12px 4px;
+  box-shadow:3px 3px 0 #26244A;display:flex;align-items:center;gap:6px;max-width:min(320px,calc(100vw - 24px));cursor:pointer;user-select:none;-webkit-user-select:none}
+#offline .pruh{width:60px;height:8px;border-radius:4px;background:#E4DEFA;overflow:hidden;flex:none}
+#offline .pruh i{display:block;height:100%;width:0;background:#2FB574;transition:width .3s}
+#offline .vic{display:none;font-weight:500;font-size:13px}
+#offline.otevreny{border-radius:16px;flex-wrap:wrap}
+#offline.otevreny .vic{display:block;width:100%}
+#offline.of-ok{background:#D9F5E5}#offline.of-stahuje{background:#FFF6D6}#offline.of-chyba{background:#FFE7C2}
+
+</style>
+<script>
+/* Davídkovy hry – štítek stavu offline vpravo dole + registrace service workeru (společný pro všechny hry).
+   Použití (jednou, na konci stránky):  Offline.init({ kanal:'hratky-sw', velikost:'asi 67 MB', web:'https://fraszyk.github.io/chytre-hratky/' });
+   Service worker vzniká ze sw-sablona.js (stejný kanál). Stránka nemusí mít #offline v HTML, modul si ho vytvoří. */
+(function(G){
+ G.Offline={init(cfg){
+  const kanal=cfg.kanal,velikost=cfg.velikost||'',web=cfg.web||location.href.split('#')[0];
+  let box=document.getElementById('offline');
+  if(!box){box=document.createElement('div');box.id='offline';box.setAttribute('role','status');box.setAttribute('aria-live','polite');box.hidden=true;
+    box.innerHTML='<span class="txt"></span><span class="pruh" hidden><i></i></span><span class="vic"></span>';document.body.appendChild(box)}
+  const txt=box.querySelector('.txt'),pruh=box.querySelector('.pruh'),bar=pruh.querySelector('i'),vic=box.querySelector('.vic');
+  let stav='?';
+  function ukaz(s,t,v,proc){stav=s;box.hidden=false;box.className='of-'+s+(box.classList.contains('otevreny')?' otevreny':'');txt.textContent=t;vic.textContent=v;
+    pruh.hidden=proc==null;if(proc!=null)bar.style.width=Math.round(proc)+'%'}
+  box.onclick=()=>box.classList.toggle('otevreny');
+  if(!('serviceWorker' in navigator)||!window.isSecureContext||/^(blob|data|about|file):/.test(location.protocol)){ukaz('chyba','🌐 Jen online','Tady se hra nedá uložit pro offline. Otevřete ji z '+web);return}
+  const hotovo=()=>{if(!navigator.onLine)ukaz('ok','📴 Offline, vše funguje','Hra je uložená v tabletu, hraje se bez internetu.');else ukaz('ok','✅ Připraveno offline','Hra i všechny nahrávky jsou uložené v tabletu. Funguje i bez internetu.')};
+  const stahuje=(h,c)=>{const p=c?h/c*100:0;ukaz('stahuje',`⬇️ Stahuje se pro offline ${Math.round(p)} %`,'Nechte hru chvilku otevřenou, stahují se nahrávky a zvuky'+(velikost?' ('+velikost+')':'')+'. Hrát se dá už teď.',p)};
+  const nejde=()=>ukaz('chyba','⚠️ Zatím jen online','Stažení pro offline se nedokončilo. Zkusí se znovu při dalším spuštění s internetem.');
+  let bc=null;try{bc=new BroadcastChannel(kanal)}catch(e){}
+  if(bc)bc.onmessage=e=>{const d=e.data||{};
+    if(d.typ==='prubeh')stahuje(d.hotovo,d.celkem);
+    else if(d.typ==='hotovo')hotovo();
+    else if(d.typ==='chyba')nejde();
+    else if(d.typ==='stav'){if(d.hotovo>=d.celkem&&d.celkem>0)hotovo();else if(stav!=='stahuje')nejde()}};
+  ukaz('stahuje','⬇️ Připravuji offline…','',0);
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    const sleduj=w=>{if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='redundant'&&stav==='stahuje')nejde()})};
+    sleduj(reg.installing);reg.addEventListener('updatefound',()=>sleduj(reg.installing));
+    if(!reg.installing&&!reg.waiting)navigator.serviceWorker.ready.then(()=>{if(bc)bc.postMessage({typ:'dotaz'});else hotovo()});
+  }).catch(nejde);
+  addEventListener('online',()=>{if(stav==='ok')hotovo()});addEventListener('offline',()=>{if(stav==='ok')hotovo()});
+ }};
+})(window);
+
+Offline.init({ kanal: 'mestecko-sw', velikost: 'asi 91 MB', web: 'https://fraszyk.github.io/davidkovo-mestecko/' });
 </script>
 </body>
 </html>
